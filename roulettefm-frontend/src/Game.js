@@ -10,8 +10,8 @@ function Game({players, socket, isLeader, lobby, gamePhase, setGamePhase, rounds
 
 
 
-    const submitGuess = (name) => {
-        //socket.emit('submitGuess', { guess });
+    const submitGuess = (guess) => {
+        //socket.emit('submitGuess', { guess }); haven't implemented, going to compare guess to answer set in backend
         setGamePhase('results');
     };
 

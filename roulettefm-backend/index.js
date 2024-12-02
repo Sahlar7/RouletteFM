@@ -127,10 +127,14 @@ async function selectRandomSong(players) {
         // Step 2: Randomly select a player
         const randomPlayerData = selectRandom(validPlayerTracks);
 
+        const randomPlayerName = randomPlayerData.name;
+
         // Step 3: Randomly select a track from that player's saved tracks
         const randomTrack = selectRandom(randomPlayerData.tracks);
 
-        return randomTrack; // Return the random track
+        return {track: randomTrack,
+                playerName: randomPlayerName
+        }; // Return the random track
     } catch (error) {
         console.error('Error selecting random song:', error);
         return null; // Return null if something goes wrong
@@ -184,8 +188,8 @@ io.on('connection', (socket) => {
             lobbies[lobbyId].gameState = 'guessing'; // Update game state
             try {
                 // Await the random song selection
-                randomSong = await selectRandomSong(lobbies[lobbyId].players);
-
+                const {randomSong, playerName} = await selectRandomSong(lobbies[lobbyId].players);
+                lobbies[lobbyId].roundAnswer = playerName;
     
                 // Notify all clients that the game state has changed
                 io.to(lobbyId).emit('gameStateChanged', lobbies[lobbyId].gameState);
@@ -202,10 +206,11 @@ io.on('connection', (socket) => {
         if(lobbies[lobbyId]){
             lobbies[lobbyId].currentRound++;
             lobbies[lobbyId].gameState = 'guessing'
-            randomTrack = await selectRandomSong(lobbies[lobbyId].players);
+            const {randomSong, playerName} = await selectRandomSong(lobbies[lobbyId].players);
+            lobbies[lobbyId].roundAnswer = playerName;
             io.to(lobbyId).emit('updateRound', lobbies[lobbyId].currentRound);
             io.to(lobbyId).emit('gameStateChanged', lobbies[lobbyId].gameState);
-            io.to(lobbyId).emit('songSelected', randomTrack);
+            io.to(lobbyId).emit('songSelected', randomSong);
 
         }
     })
