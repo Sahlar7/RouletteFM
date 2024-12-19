@@ -104,11 +104,10 @@ async function fetchAllSavedTracks(accessToken) {
         offset += limit;
         hasMore = tracks.length === limit; // If we get less than the limit, we're done
     }
-
     return allTracks;
 }
 
-async function selectRandomSong(players) {
+async function selectRandomSong(players, rounds) {
     try {
         // Step 1: Fetch saved tracks for each player
         const playerTracks = await Promise.all(players.map(async (player) => {
@@ -125,16 +124,29 @@ async function selectRandomSong(players) {
         }
 
         // Step 2: Randomly select a player
-        const randomPlayerData = selectRandom(validPlayerTracks);
-
-        const randomPlayerName = randomPlayerData.name;
-
-        // Step 3: Randomly select a track from that player's saved tracks
-        const randomTrack = selectRandom(randomPlayerData.tracks);
-
-        return {track: randomTrack,
-                playerName: randomPlayerName
-        }; // Return the random track
+        const questions = [{track: null, playerName: ''}]
+        for(let i = 0; i<rounds; i++){
+            const randomPlayerData = selectRandom(validPlayerTracks);
+            const randomPlayerName = randomPlayerData.player.name;
+    
+            // Step 3: Randomly select a track from that player's saved tracks
+            const randomTrack = selectRandom(randomPlayerData.tracks);
+            const filteredTrack = {name: randomTrack.name, artists: randomTrack.artists, uri: randomTrack.uri};
+            if(filteredTrack === null || randomPlayerName === ''){
+                i--;
+            }
+            else{
+                const question = {track: filteredTrack, playerName: randomPlayerName};
+                if(questions.includes(question)){
+                    i--;
+                }
+                else{
+                    questions[i] = question;
+                }
+            }
+        }
+       
+        return questions;
     } catch (error) {
         console.error('Error selecting random song:', error);
         return null; // Return null if something goes wrong
@@ -160,7 +172,7 @@ io.on('connection', (socket) => {
 
     socket.on('createLobby', ({ token, name }) => {
         const lobbyId = Math.random().toString(36).substr(2, 9);
-        lobbies[lobbyId] = { id: lobbyId, players: [{token, name}], gameState: 'lobby', currentRound: 1 };
+        lobbies[lobbyId] = { id: lobbyId, players: [{token, name}], gameState: 'lobby'};
 
         socket.join(lobbyId);
         socket.emit('lobbyCreated', lobbies[lobbyId]);
@@ -178,25 +190,24 @@ io.on('connection', (socket) => {
     });
     socket.on('saveSettings', ({rounds, duration, lobbyId}) =>{
         if(lobbies[lobbyId]){
-            lobbies[lobbyId].settings = {rounds, duration};
-            io.to(lobbyId).emit('settingsUpdated', {rounds, duration});
+            lobbies[lobbyId].rounds = rounds;
+            lobbies[lobbyId].duration = duration;
+            io.to(lobbyId).emit('settingsUpdated', {rounds: lobbies[lobbyId].rounds, duration: lobbies[lobbyId].duration});
         }
     });
     socket.on('startGame', async ({ lobbyId }) => {
         if (lobbies[lobbyId]) {
-            lobbies[lobbyId].currentRound=1;
             lobbies[lobbyId].gameState = 'guessing'; // Update game state
+            lobbies[lobbyId].currentRound = 1;
+            lobbies[lobbyId].guesses = {};
             try {
+                console.log("start round emission received");
                 // Await the random song selection
-                const {randomSong, playerName} = await selectRandomSong(lobbies[lobbyId].players);
-                lobbies[lobbyId].roundAnswer = playerName;
-    
+                const questions = await selectRandomSong(lobbies[lobbyId].players, lobbies[lobbyId].rounds);
+                lobbies[lobbyId].questions = questions;
+                console.log(questions[0]);
                 // Notify all clients that the game state has changed
-                io.to(lobbyId).emit('gameStateChanged', lobbies[lobbyId].gameState);
-                io.to(lobbyId).emit('connectPlayer');
-    
-                // Emit the selected song to all clients
-                io.to(lobbyId).emit('songSelected', randomSong);
+                io.to(lobbyId).emit('gameReady', {gamePhase: lobbies[lobbyId].gameState, round: lobbies[lobbyId].currentRound, questions: lobbies[lobbyId].questions})
             } catch (error) {
                 console.error('Error selecting random song:', error);
             }
@@ -204,16 +215,33 @@ io.on('connection', (socket) => {
     });
     socket.on('nextRound', async ({lobbyId}) =>{
         if(lobbies[lobbyId]){
-            lobbies[lobbyId].currentRound++;
+            console.log("next round emission received");
+            lobbies[lobbyId].currentRound += 1;
             lobbies[lobbyId].gameState = 'guessing'
-            const {randomSong, playerName} = await selectRandomSong(lobbies[lobbyId].players);
-            lobbies[lobbyId].roundAnswer = playerName;
-            io.to(lobbyId).emit('updateRound', lobbies[lobbyId].currentRound);
-            io.to(lobbyId).emit('gameStateChanged', lobbies[lobbyId].gameState);
-            io.to(lobbyId).emit('songSelected', randomSong);
-
+            lobbies[lobbyId].guesses = {};
+            io.to(lobbyId).emit('updateRound', {round: lobbies[lobbyId].currentRound, gamePhase: lobbies[lobbyId].gameState});
         }
-    })
+    });
+    socket.on('addGuess', ({guess, lobbyId}) =>{
+        lobbies[lobbyId].guesses[socket.id] = guess;
+        if(Object.keys(lobbies[lobbyId].guesses).length == Object.keys(lobbies[lobbyId].players).length){
+            const guesses = lobbies[lobbyId].guesses;
+            const round = lobbies[lobbyId].currentRound;
+            const correctPlayer = lobbies[lobbyId].questions[round].playerName.trim().toLowerCase();
+            const results = {};
+            console.log('answer: ', correctPlayer);
+            Object.entries(guesses).forEach(([player, guess])=>{
+                const editedGuess = guess.trim().toLowerCase();
+                console.log("guess: ", editedGuess);
+                results[player]={
+                    guess,
+                    correct: editedGuess === correctPlayer,
+                    points: editedGuess === correctPlayer ? 10 : 0
+                };
+            });
+            io.to(lobbyId).emit('roundResults', results);
+        }
+    });
 });
 
 server.listen(PORT, () => {

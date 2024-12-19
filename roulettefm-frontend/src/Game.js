@@ -1,28 +1,25 @@
 import React, { useState, useEffect } from 'react';
 
-function Game({players, socket, isLeader, lobby, gamePhase, setGamePhase, rounds, duration, accessToken}) {
-    const [selectedSong, setSelectedSong] = useState(null);
-    const [results, setResults] = useState(null);
-    const [round, setRound] = useState(1);
-    const [player, setPlayer] = useState(null);
-    const [deviceId, setDeviceId] = useState(null);
-    
+function Game({players, socket, isLeader, lobby, gamePhase, setGamePhase, rounds, duration, accessToken, name, round, setRound, questions, webPlayer, deviceId}) {
+    const [results, setResults] = useState({});
+    const [guess, setGuess] = useState('No Guess')
 
 
 
-    const submitGuess = (guess) => {
-        //socket.emit('submitGuess', { guess }); haven't implemented, going to compare guess to answer set in backend
-        setGamePhase('results');
+    const submitGuess = (guess) => { 
+        setGuess(guess);
+        socket.emit('addGuess', {guess: guess, lobbyId: lobby.id});
+        console.log(`Guess submitted: ${guess}`);
     };
-
+    
     const startNextRound = () => {
         socket.emit('nextRound', {lobbyId: lobby.id});
 
     };
 
     useEffect(() => {
-        const playSongClip = async () => {
-            if (!deviceId || !selectedSong?.uri) {
+        const playSongClip = async (track) => {
+            if (!deviceId || !track?.uri) {
                 console.error('Device ID or track URI missing');
                 return;
             }
@@ -31,95 +28,54 @@ function Game({players, socket, isLeader, lobby, gamePhase, setGamePhase, rounds
     
             try {
                 // Pause current playback first (if any)
-                await player.pause().catch((error) => console.warn('Error pausing previous track:', error));
+                await webPlayer.pause().catch((error) => console.warn('Error pausing previous track:', error));
     
                 // Start playing the new song
                 await fetch(playEndpoint, {
                     method: 'PUT',
-                    body: JSON.stringify({ uris: [selectedSong.uri] }),
+                    body: JSON.stringify({ uris: [track.uri] }),
                     headers: {
                         'Content-Type': 'application/json',
                         Authorization: `Bearer ${accessToken}`,
                     },
                 });
     
-                console.log(`Playing: ${selectedSong.name}`);
+                console.log(`Playing: ${track.name}`);
     
                 // Pause after the specified duration
                 setTimeout(() => {
-                    player.pause().catch((error) => console.error('Error pausing playback:', error));
+                    webPlayer.pause().catch((error) => console.error('Error pausing playback:', error));
+                    if(guess === 'No Guess'){
+                        socket.emit('addGuess', {guess: guess, socket: socket, lobbyId: lobby.id});
+                    }
                 }, duration * 1000); // Convert seconds to milliseconds
             } catch (error) {
                 console.error('Error starting playback:', error);
             }
         };
     
-        if (selectedSong) {
-            playSongClip();
+        if (questions[round] && gamePhase==='guessing') {
+            const track = questions[round].track
+            playSongClip(track);
         }
-    }, [selectedSong, deviceId, player, duration, accessToken]);
+    }, [gamePhase, guess, lobby.id, questions, round, socket, deviceId, webPlayer, duration, accessToken]);
     
     useEffect(() => {
-        socket.on('connectPlayer', ()=>{
-            const script = document.createElement('script');
-        script.src = "https://sdk.scdn.co/spotify-player.js";
-        script.async = true;
-
-        document.body.appendChild(script);
-        window.onSpotifyWebPlaybackSDKReady = () => {
-            const newPlayer = new window.Spotify.Player({
-                name: 'RouletteFM Player',
-                getOAuthToken: cb => { cb(accessToken); }, 
-                volume: 0.5
-            });
-
-            newPlayer.addListener('initialization_error', ({ message }) => { console.error(message); });
-            newPlayer.addListener('authentication_error', ({ message }) => { console.error(message); });
-            newPlayer.addListener('account_error', ({ message }) => { console.error(message); });
-            newPlayer.addListener('playback_error', ({ message }) => { console.error(message); });
-
-            setPlayer(newPlayer); 
-
-            newPlayer.addListener('player_state_changed', state => {
-                console.log(state);
-            });
-
-            newPlayer.addListener('ready', ({ device_id }) => {
-                console.log('Ready with Device ID', device_id);
-                setDeviceId(device_id);
-            });
-
-            newPlayer.addListener('not_ready', ({ device_id }) => {
-                console.log('Device ID has gone offline', device_id);
-            });
-            newPlayer.connect();
-        };
+        socket.on('updateRound', ({round, gamePhase}) =>{
+            setRound(round);
+            setGamePhase(gamePhase);
+            console.log(round);
         });
-        socket.on('songSelected', (song) =>{
-            setSelectedSong(song);
-        });
-        socket.on('updateRound', (currentRound) =>{
-            setRound(currentRound);
+        socket.on('roundResults', (results)=>{
+            setResults(results);
+            setGamePhase('results');
         });
         return()=>{
-            socket.off('connectPlayer');
-            socket.off('songSelected');
             socket.off('updateRound');
+            socket.off('roundResults');
         }
-    });
+    }, [setRound, setGamePhase, accessToken, socket]);
 
-
-
-
-    useEffect(() => {
-        if (gamePhase === 'results') {
-            const simulatedResults = {
-                correctGuess: 'Player1',
-                points: 10,
-            };
-            setResults(simulatedResults);
-        }
-    }, [gamePhase]);
 
     return (
         <div>
@@ -127,7 +83,7 @@ function Game({players, socket, isLeader, lobby, gamePhase, setGamePhase, rounds
             {gamePhase === 'guessing' && (
                 <div>
                     <h2>Round {round} / {rounds}</h2>
-                    {selectedSong ? (
+                    {questions[round] ? (
                         <div>
                             <p>Try to guess whose playlist this song is from!</p>
                             <div>
@@ -148,9 +104,13 @@ function Game({players, socket, isLeader, lobby, gamePhase, setGamePhase, rounds
             {gamePhase === 'results' && results && (
                 <div>
                     <h3>Results</h3>
-                    <p>The song was: {selectedSong.name} by {selectedSong.artists[0].name}</p>
-                    <p>Correct guess: {results.correctGuess}</p>
-                    <p>You earned: {results.points} points!</p>
+                    <p>The song was: {questions[round].track.name} by {questions[round].track.artists[0].name}</p>
+                    <p>Correct guess: {questions[round].playerName}</p>
+                    {Object.entries(results).map(([player, result]) => (
+            <p key={player}>
+                {player} guessed: {result.guessedPlayer} — {result.correct ? 'Correct!' : 'Wrong'} (Points: {result.points})
+            </p>
+        ))}
                     {isLeader && (
                         <button onClick={startNextRound}>Next Round</button>
                     )}
