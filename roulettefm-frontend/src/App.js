@@ -17,6 +17,14 @@ function App() {
     const [players, setPlayers] = useState([]);
     const [rounds, setRounds] = useState(5); // Default rounds
     const [duration, setDuration] = useState(10); // Default duration in seconds
+    const [joinId, setJoinId] = useState('');
+    const [round, setRound] = useState(0);
+    const [questions, setQuestions] = useState([]);
+    const [webPlayer, setWebPlayer] = useState(null);
+    const [deviceId, setDeviceId] = useState(null);
+
+
+
 
     
     
@@ -34,6 +42,41 @@ function App() {
     }, []);
 
     useEffect(() => {
+        const connectPlayer = () =>{
+            const script = document.createElement('script');
+            script.src = "https://sdk.scdn.co/spotify-player.js";
+            script.async = true;
+
+            document.body.appendChild(script);
+            window.onSpotifyWebPlaybackSDKReady = () => {
+                const newPlayer = new window.Spotify.Player({
+                    name: 'RouletteFM Player',
+                    getOAuthToken: cb => { cb(accessToken); }, 
+                    volume: 0.5
+                });
+
+                newPlayer.addListener('initialization_error', ({ message }) => { console.error(message); });
+                newPlayer.addListener('authentication_error', ({ message }) => { console.error(message); });
+                newPlayer.addListener('account_error', ({ message }) => { console.error(message); });
+                newPlayer.addListener('playback_error', ({ message }) => { console.error(message); });
+
+                setWebPlayer(newPlayer); 
+
+                newPlayer.addListener('player_state_changed', state => {
+                    console.log(state);
+                });
+
+                newPlayer.addListener('ready', ({ device_id }) => {
+                    console.log('Ready with Device ID', device_id);
+                    setDeviceId(device_id);
+                });
+
+                newPlayer.addListener('not_ready', ({ device_id }) => {
+                    console.log('Device ID has gone offline', device_id);
+                });
+                newPlayer.connect();
+            };
+        }
         socket.on('lobbyUpdated', (updatedLobby) => {
             setLobby(updatedLobby);
         });        
@@ -42,35 +85,49 @@ function App() {
             setRounds(rounds);
             setDuration(duration);
         });
-        socket.on('gameStateChanged', setGamePhase);
-    
+        socket.on('gameReady', ({gamePhase, round, questions})=>{
+            console.log(questions[0]);
+            console.log(round);
+            connectPlayer();
+            setRound(round);
+            setQuestions(questions);
+            setGamePhase(gamePhase);
+        })
+        socket.on('lobbyJoined', (lobbyData) => {
+            setLobby(lobbyData);
+            console.log('Lobby joined:', lobbyData);
+            setGamePhase('lobby'); // Set initial game state to lobby
+        });
+        socket.on('lobbyCreated', (lobbyData) => {
+            setLobby(lobbyData);
+            console.log('Lobby created:', lobbyData);
+            setLeader(true);
+            setGamePhase('lobby'); // Set initial game state to lobby
+        });
         return () => {
+            socket.off('lobbyCreated');
+            socket.off('lobbyJoined')
             socket.off('playerListUpdate');
             socket.off('settingsUpdated');
-            socket.off('gameStateChanged');
+            socket.off('gameReady');
             socket.off('lobbyUpdated');
         };
-    }, []);
+    }, [accessToken]);
     const createLobby = () => {
         if (accessToken && name) {
             socket.emit('createLobby', { token: accessToken, name });
-            socket.on('lobbyCreated', (lobbyData) => {
-                setLobby(lobbyData);
-                console.log('Lobby created:', lobbyData);
-                setLeader(true);
-                setGamePhase('lobby'); // Set initial game state to lobby
-            });
         }
     };
 
-    const joinLobby = (lobbyId) => {
+    const joinLobby = () => {
+        console.log(joinId);
+        if(!joinId || !name){
+            alert('Please enter a valid lobby id and a name');
+            return;
+        }
         if (accessToken && name) {
-            socket.emit('joinLobby', { lobbyId, token: accessToken, name });
-            socket.on('lobbyJoined', (lobbyData) => {
-                setLobby(lobbyData);
-                console.log('Lobby joined:', lobbyData);
-                setGamePhase('lobby'); // Set initial game state to lobby
-            });
+            setLeader(false);
+            socket.emit('joinLobby', { lobbyId: joinId, token: accessToken, name });
         }
     };
 
@@ -153,6 +210,12 @@ function App() {
                     rounds={rounds}
                     duration={duration}
                     accessToken={accessToken}
+                    name={name}
+                    round={round}
+                    setRound={setRound}
+                    questions={questions}
+                    webPlayer={webPlayer}
+                    deviceId={deviceId}
                 />
             ) : (
                 <div>
@@ -163,13 +226,16 @@ function App() {
                         onChange={(e) => setName(e.target.value)}
                     />
                     <br />
-                    <button onClick={createLobby}>Create Lobby</button>
+                    <button onClick={createLobby} disabled={!name}>Create Lobby</button>
                     <br />
                     <input
                         type="text"
                         placeholder="Enter Lobby ID to Join"
-                        onBlur={(e) => joinLobby(e.target.value)}
+                        value={joinId}
+                        onChange={(e) => setJoinId(e.target.value)}
                     />
+                    <br />
+                    <button onClick={joinLobby} disabled={!joinId || !name}>Join Lobby</button>
                 </div>
             )}
         </div>
