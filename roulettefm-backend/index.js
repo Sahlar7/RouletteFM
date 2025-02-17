@@ -114,17 +114,16 @@ async function selectRandomSong(players, rounds) {
             const tracks = await fetchAllSavedTracks(player.token); // Fetch player's saved tracks
             return { player, tracks };
         }));
-
         // Filter out players who have no saved tracks
         const validPlayerTracks = playerTracks.filter(data => data.tracks.length > 0);
-
         if (validPlayerTracks.length === 0) {
             console.error('No players have valid saved tracks');
             return null; // Return null if no player has valid saved tracks
         }
 
         // Step 2: Randomly select a player
-        const questions = [{track: null, playerName: ''}]
+        const questions = [];
+        
         for(let i = 0; i<rounds; i++){
             const randomPlayerData = selectRandom(validPlayerTracks);
             const randomPlayerName = randomPlayerData.player.name;
@@ -132,17 +131,14 @@ async function selectRandomSong(players, rounds) {
             // Step 3: Randomly select a track from that player's saved tracks
             const randomTrack = selectRandom(randomPlayerData.tracks);
             const filteredTrack = {name: randomTrack.name, artists: randomTrack.artists, uri: randomTrack.uri};
-            if(filteredTrack === null || randomPlayerName === ''){
-                i--;
-            }
-            else{
-                const question = {track: filteredTrack, playerName: randomPlayerName};
-                if(questions.includes(question)){
-                    i--;
-                }
-                else{
-                    questions[i] = question;
-                }
+            const questionExists = questions.some(
+                q => q.track.uri === filteredTrack.uri && q.playerName === randomPlayerName
+            );
+
+            if (!filteredTrack.name || !filteredTrack.uri || !randomPlayerName || questionExists) {
+                i--; // Retry the current round if invalid data
+            } else {
+                questions.push({ track: filteredTrack, playerName: randomPlayerName });
             }
         }
        
@@ -172,8 +168,7 @@ io.on('connection', (socket) => {
 
     socket.on('createLobby', ({ token, name }) => {
         const lobbyId = Math.random().toString(36).substr(2, 9);
-        lobbies[lobbyId] = { id: lobbyId, players: [{token, name}], gameState: 'lobby'};
-
+        lobbies[lobbyId] = { id: lobbyId, players: [{token, name, socketId: socket.id}], gameState: 'lobby'};
         socket.join(lobbyId);
         socket.emit('lobbyCreated', lobbies[lobbyId]);
         io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
@@ -181,13 +176,32 @@ io.on('connection', (socket) => {
 
     socket.on('joinLobby', ({ lobbyId, token, name }) => {
         if (lobbies[lobbyId]) {
-            lobbies[lobbyId].players.push({token, name});
-            socket.join(lobbyId);
-            io.to(lobbyId).emit('lobbyJoined', lobbies[lobbyId]);
-            io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
+            const nameUsed = lobbies[lobbyId].players.find(player => player.name===name);
+            if(nameUsed){
+                io.to(socket.id).emit('nameTaken');
+            }
+            else{
+                lobbies[lobbyId].players.push({token, name, socketId: socket.id});
+                socket.join(lobbyId);
+                io.to(lobbyId).emit('lobbyJoined', lobbies[lobbyId]);
+                io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
+            }
         }
 
     });
+    socket.on('exitLobby', ({lobbyId, isLeader}) =>{
+        lobbies[lobbyId].players = lobbies[lobbyId].players.filter(p => p.socketId !== socket.id);
+        if(lobbies[lobbyId].players.length === 0) {
+            delete lobbies[lobbyId];
+        }
+        else{
+        if(isLeader){
+            newLeader = lobbies[lobbyId].players[0];
+            io.to(newLeader.socketId).emit('setLeader');
+        }
+        io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
+    }
+    })
     socket.on('saveSettings', ({rounds, duration, lobbyId}) =>{
         if(lobbies[lobbyId]){
             lobbies[lobbyId].rounds = rounds;
@@ -195,17 +209,22 @@ io.on('connection', (socket) => {
             io.to(lobbyId).emit('settingsUpdated', {rounds: lobbies[lobbyId].rounds, duration: lobbies[lobbyId].duration});
         }
     });
-    socket.on('startGame', async ({ lobbyId }) => {
+    socket.on('startGame', async ({lobbyId, rounds, duration}) => {
         if (lobbies[lobbyId]) {
+            lobbies[lobbyId].rounds = rounds;
+            lobbies[lobbyId].duration = duration;
             lobbies[lobbyId].gameState = 'guessing'; // Update game state
             lobbies[lobbyId].currentRound = 1;
-            lobbies[lobbyId].guesses = {};
+            lobbies[lobbyId].guesses = new Map();
+            lobbies[lobbyId].points = lobbies[lobbyId].players.reduce((acc, player) => {
+                acc[player.name] = 0; // Initialize points for each player
+                return acc;
+            }, {});
             try {
                 console.log("start round emission received");
                 // Await the random song selection
                 const questions = await selectRandomSong(lobbies[lobbyId].players, lobbies[lobbyId].rounds);
                 lobbies[lobbyId].questions = questions;
-                console.log(questions[0]);
                 // Notify all clients that the game state has changed
                 io.to(lobbyId).emit('gameReady', {gamePhase: lobbies[lobbyId].gameState, round: lobbies[lobbyId].currentRound, questions: lobbies[lobbyId].questions})
             } catch (error) {
@@ -217,30 +236,50 @@ io.on('connection', (socket) => {
         if(lobbies[lobbyId]){
             console.log("next round emission received");
             lobbies[lobbyId].currentRound += 1;
-            lobbies[lobbyId].gameState = 'guessing'
-            lobbies[lobbyId].guesses = {};
-            io.to(lobbyId).emit('updateRound', {round: lobbies[lobbyId].currentRound, gamePhase: lobbies[lobbyId].gameState});
+            if(lobbies[lobbyId].currentRound > lobbies[lobbyId].rounds){
+                lobbies[lobbyId].gameState = 'finalResults';
+                io.to(lobbyId).emit('finalResults', {points: lobbies[lobbyId].points, gamePhase: lobbies[lobbyId].gameState});
+            }
+            else {
+                lobbies[lobbyId].gameState = 'guessing'
+                lobbies[lobbyId].guesses = new Map();
+                io.to(lobbyId).emit('updateRound', {round: lobbies[lobbyId].currentRound, gamePhase: lobbies[lobbyId].gameState});
+            }
         }
     });
-    socket.on('addGuess', ({guess, lobbyId}) =>{
-        lobbies[lobbyId].guesses[socket.id] = guess;
-        if(Object.keys(lobbies[lobbyId].guesses).length == Object.keys(lobbies[lobbyId].players).length){
+    socket.on('addGuess', ({guess, timeTaken, lobbyId}) =>{
+        const player = lobbies[lobbyId].players.find(p=> p.socketId === socket.id);
+        lobbies[lobbyId].guesses.set(player, guess);
+        if (lobbies[lobbyId].guesses.size === lobbies[lobbyId].players.length) {
             const guesses = lobbies[lobbyId].guesses;
             const round = lobbies[lobbyId].currentRound;
-            const correctPlayer = lobbies[lobbyId].questions[round].playerName.trim().toLowerCase();
+            const correctPlayer = lobbies[lobbyId].questions[round-1].playerName.trim().toLowerCase();
             const results = {};
+            const duration = lobbies[lobbyId].duration;
             console.log('answer: ', correctPlayer);
-            Object.entries(guesses).forEach(([player, guess])=>{
-                const editedGuess = guess.trim().toLowerCase();
-                console.log("guess: ", editedGuess);
-                results[player]={
-                    guess,
+            guesses.forEach((playerGuess, playerObj) => {
+                const editedGuess = playerGuess.trim().toLowerCase();
+                console.log('Player:', playerObj.name);
+                if(editedGuess === correctPlayer){
+                    lobbies[lobbyId].points[playerObj.name] += Math.round((1-((timeTaken/duration)/2))*1000);
+                }
+                results[playerObj.name] = {
+                    guess: playerGuess,
                     correct: editedGuess === correctPlayer,
-                    points: editedGuess === correctPlayer ? 10 : 0
+                    points: lobbies[lobbyId].points[playerObj.name],
                 };
             });
+            lobbies[lobbyId].gameState = 'roundResults';
             io.to(lobbyId).emit('roundResults', results);
         }
+    });
+    socket.on('backToLobby', ({lobbyId, token, name})=>{
+        if(lobbies[lobbyId].gamePhase != 'lobby'){
+            lobbies[lobbyId].gamePhase = 'lobby';
+        }
+    });
+    socket.on('backToHome', (lobbyId)=>{
+        socket.disconnect(lobbyId);
     });
 });
 

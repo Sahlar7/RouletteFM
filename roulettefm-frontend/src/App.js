@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
-import Game from './Game'; // Assuming Game is in the same folder
+import Game from './Game';
+import './App.css'; // Import the CSS file
 
-const socket = io('http://localhost:3001', {
-    transports: ['websocket', 'polling'], // Ensure both websocket and polling are used
-    withCredentials: true, // Allow cookies to be passed
+
+const socket = io(process.env.REACT_APP_SERVER_URI, {
+    transports: ['websocket', 'polling'], 
+    withCredentials: true, 
 });
 
 function App() {
@@ -12,22 +14,16 @@ function App() {
     const [accessToken, setAccessToken] = useState('');
     const [lobby, setLobby] = useState(null);
     const [isLeader, setLeader] = useState(false);
-    const [gamePhase, setGamePhase] = useState('lobby'); // Tracks the current phase of the game
+    const [gamePhase, setGamePhase] = useState('lobby'); 
     const [name, setName] = useState('');
     const [players, setPlayers] = useState([]);
-    const [rounds, setRounds] = useState(5); // Default rounds
-    const [duration, setDuration] = useState(10); // Default duration in seconds
+    const [rounds, setRounds] = useState(5); 
+    const [duration, setDuration] = useState(10);
     const [joinId, setJoinId] = useState('');
     const [round, setRound] = useState(0);
     const [questions, setQuestions] = useState([]);
     const [webPlayer, setWebPlayer] = useState(null);
     const [deviceId, setDeviceId] = useState(null);
-
-
-
-
-    
-    
 
     useEffect(() => {
         const token = document.cookie
@@ -42,56 +38,72 @@ function App() {
     }, []);
 
     useEffect(() => {
-        const connectPlayer = () =>{
-            const script = document.createElement('script');
-            script.src = "https://sdk.scdn.co/spotify-player.js";
-            script.async = true;
+        const connectPlayer = async () => {
+            if (!accessToken) return;
+    
+            const script = document.querySelector('script[src="https://sdk.scdn.co/spotify-player.js"]');
+            if (!script) {
+                const newScript = document.createElement('script');
+                newScript.src = "https://sdk.scdn.co/spotify-player.js";
+                newScript.async = true;
+                document.body.appendChild(newScript);
+    
+                newScript.onload = () => initializePlayer();
+            } else if (window.Spotify && window.Spotify.Player) {
+                initializePlayer();
+            }
+        };
+    
+        const initializePlayer = () => {
+            const player = new window.Spotify.Player({
+                name: 'RouletteFM Player',
+                getOAuthToken: (cb) => cb(accessToken),
+                volume: 0.5,
+            });
+    
+            player.addListener('ready', ({ device_id }) => {
+                console.log('Web Player ready with Device ID', device_id);
+                setDeviceId(device_id);
+            });
+    
+            player.addListener('not_ready', ({ device_id }) => {
+                console.warn('Web Player not ready with Device ID', device_id);
+            });
+    
+            player.addListener('initialization_error', ({ message }) => console.error(message));
+            player.addListener('authentication_error', ({ message }) => console.error(message));
+            player.addListener('account_error', ({ message }) => console.error(message));
+            player.addListener('playback_error', ({ message }) => console.error(message));
+    
+            player.connect();
+            setWebPlayer(player);
+        };
 
-            document.body.appendChild(script);
-            window.onSpotifyWebPlaybackSDKReady = () => {
-                const newPlayer = new window.Spotify.Player({
-                    name: 'RouletteFM Player',
-                    getOAuthToken: cb => { cb(accessToken); }, 
-                    volume: 0.5
-                });
-
-                newPlayer.addListener('initialization_error', ({ message }) => { console.error(message); });
-                newPlayer.addListener('authentication_error', ({ message }) => { console.error(message); });
-                newPlayer.addListener('account_error', ({ message }) => { console.error(message); });
-                newPlayer.addListener('playback_error', ({ message }) => { console.error(message); });
-
-                setWebPlayer(newPlayer); 
-
-                newPlayer.addListener('player_state_changed', state => {
-                    console.log(state);
-                });
-
-                newPlayer.addListener('ready', ({ device_id }) => {
-                    console.log('Ready with Device ID', device_id);
-                    setDeviceId(device_id);
-                });
-
-                newPlayer.addListener('not_ready', ({ device_id }) => {
-                    console.log('Device ID has gone offline', device_id);
-                });
-                newPlayer.connect();
-            };
-        }
         socket.on('lobbyUpdated', (updatedLobby) => {
             setLobby(updatedLobby);
         });        
-        socket.on('playerListUpdate', setPlayers);
+        socket.on('playerListUpdate', (players)=>{
+            setPlayers(players);
+            if(players.length === 1){
+                setLeader(true);
+            }
+        });
+        socket.on('setLeader', ()=>{
+            setLeader(true);
+        });
         socket.on('settingsUpdated', ({ rounds, duration }) => {
             setRounds(rounds);
             setDuration(duration);
         });
         socket.on('gameReady', ({gamePhase, round, questions})=>{
-            console.log(questions[0]);
-            console.log(round);
-            connectPlayer();
             setRound(round);
             setQuestions(questions);
             setGamePhase(gamePhase);
+            connectPlayer();
+        });
+        socket.on('nameTaken', ()=>{
+            alert('This name is already being used in the lobby you are trying to join. Please enter a different name.');
+
         })
         socket.on('lobbyJoined', (lobbyData) => {
             setLobby(lobbyData);
@@ -105,6 +117,7 @@ function App() {
             setGamePhase('lobby'); // Set initial game state to lobby
         });
         return () => {
+            socket.off('nameTaken');
             socket.off('lobbyCreated');
             socket.off('lobbyJoined')
             socket.off('playerListUpdate');
@@ -112,10 +125,13 @@ function App() {
             socket.off('gameReady');
             socket.off('lobbyUpdated');
         };
-    }, [accessToken]);
+    }, [accessToken, webPlayer]);
     const createLobby = () => {
         if (accessToken && name) {
             socket.emit('createLobby', { token: accessToken, name });
+        }
+        else{
+            console.log('no token or name');
         }
     };
 
@@ -131,6 +147,15 @@ function App() {
         }
     };
 
+    const exitLobby = () =>{
+        socket.emit('exitLobby', {lobbyId: lobby.id, isLeader})
+        setLobby(null);
+        setPlayers([]);
+        setLeader(false);
+        socket.disconnect();
+        socket.connect();
+    }
+
     const handleSaveSettings = () => {
         if(isLeader && lobby){
             socket.emit('saveSettings', {rounds, duration, lobbyId: lobby.id});
@@ -139,7 +164,7 @@ function App() {
 
     const startGame = () => {
         if (isLeader && lobby) {
-            socket.emit('startGame', {lobbyId: lobby.id});
+            socket.emit('startGame', {lobbyId: lobby.id, rounds: rounds, duration: duration});
         }
     };
 
@@ -147,7 +172,12 @@ function App() {
     
 
     if (!authenticated) {
-        return <a href="http://localhost:3001/login">Login with Spotify</a>;
+        return (
+            <div>
+                <h1>RouletteFM</h1>
+                <a href="http://localhost:3001/login">Login with Spotify</a>
+            </div>
+        );
     }
 
     return (
@@ -159,7 +189,7 @@ function App() {
                     <p>Players in the lobby:</p>
                     <ul>
                         {players.map((player, index) => (
-                            <li key={index}>{player.name}</li> // Display player names
+                            <li key={index}>{player.name}</li> 
                         ))}
                     </ul>
                     {isLeader ? (
@@ -190,9 +220,12 @@ function App() {
                             <button onClick={handleSaveSettings}>Save Settings</button>
                             <br/>
                             <button onClick={startGame}>Start Game</button>
+                            <br/>
+                            <button onClick={exitLobby}>Exit Lobby</button>
                         </div>
                     ) : (
                         <div>
+                            <button onClick={exitLobby}>Exit Lobby</button>
                             <h3>Game Settings:</h3>
                             <p>Number of Rounds: {rounds}</p>
                             <p>Round Duration: {duration} seconds</p>
@@ -201,24 +234,32 @@ function App() {
                 </div>
             ) : lobby ? (
                 <Game
-                    players ={players} 
+                    players ={players}
+                    setPlayers={setPlayers} 
                     socket={socket} 
                     isLeader={isLeader} 
-                    lobby={lobby} 
+                    setLeader={setLeader}
+                    lobby={lobby}
                     gamePhase={gamePhase} 
                     setGamePhase={setGamePhase} 
                     rounds={rounds}
+                    setRounds={setRounds}
                     duration={duration}
+                    setDuration={setDuration}
                     accessToken={accessToken}
-                    name={name}
+                    setLobby={setLobby}
                     round={round}
                     setRound={setRound}
                     questions={questions}
+                    setQuestions={setQuestions}
                     webPlayer={webPlayer}
+                    setWebPlayer={setWebPlayer}
                     deviceId={deviceId}
+                    setDeviceId={setDeviceId}
+                    name={name}
                 />
             ) : (
-                <div>
+                <div className='home'>
                   <input
                         type="text"
                         placeholder="Enter your name"
