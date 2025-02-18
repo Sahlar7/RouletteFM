@@ -38,6 +38,26 @@ function App() {
     }, []);
 
     useEffect(() => {
+        const refreshAccessToken = async () => {
+            try{
+                const response = await fetch('http://localhost:3001/refresh_token', {
+                    method: 'GET',
+                    credentials: 'include',
+                });
+                const data = await response.json();
+                setAccessToken(data.access_token);
+                console.log("token refreshed");
+            }
+            catch (error){
+                console.error('Error refreshing access token:', error);
+            }
+        };
+
+        const interval = setInterval(refreshAccessToken, 30 * 60 * 1000);
+        return () => clearInterval(interval);
+    })
+
+    useEffect(() => {
         const connectPlayer = async () => {
             if (!accessToken) return;
     

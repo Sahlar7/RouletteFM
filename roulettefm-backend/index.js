@@ -60,6 +60,7 @@ app.get('/callback', async (req, res) => {
 
             const { access_token, refresh_token } = result.data;
             res.cookie('access_token', access_token);
+            res.cookie('refresh_token', refresh_token)
             res.redirect('/');
         } catch (error) {
             console.error(error);
@@ -67,6 +68,33 @@ app.get('/callback', async (req, res) => {
         }
     }
 });
+
+app.get('/refresh_token', async (req, res) => {
+    const refreshToken = req.cookies.refresh_token;
+
+    if (!refreshToken) {
+        return res.status(400).json({ error: 'Refresh token is missing' });
+    }
+
+    try {
+        const response = await axios.post('https://accounts.spotify.com/api/token', null, {
+            params: {
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken,
+            },
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+            },
+        });
+
+        const { access_token } = response.data;
+        res.json({ access_token });
+    } catch (error) {
+        console.error('Error refreshing token:', error);
+        res.status(500).json({ error: 'Failed to refresh token' });
+    }
+})
 
 
 
