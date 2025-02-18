@@ -1,4 +1,4 @@
 roulettefm-backend/.env
 /.vscode
 .vscode/settings.json
-./node_modules
+node_modules
