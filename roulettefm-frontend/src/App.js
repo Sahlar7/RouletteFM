@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 import Game from './Game';
+import GameSettings from './GameSettings';
 import './App.css'; // Import the CSS file
 
-
-const socket = io(process.env.REACT_APP_SERVER_URI, {
+const socket = io(process.env.REACT_APP_SERVER_URL, {
     transports: ['websocket', 'polling'], 
     withCredentials: true, 
 });
@@ -40,7 +40,7 @@ function App() {
     useEffect(() => {
         const refreshAccessToken = async () => {
             try{
-                const response = await fetch('http://localhost:3001/refresh_token', {
+                const response = await fetch(`${process.env.REACT_APP_SERVER_URL}/refresh_token`, {
                     method: 'GET',
                     credentials: 'include',
                 });
@@ -48,7 +48,7 @@ function App() {
                 setAccessToken(data.access_token);
                 console.log("token refreshed");
             }
-            catch (error){
+catch (error){
                 console.error('Error refreshing access token:', error);
             }
         };
@@ -60,46 +60,46 @@ function App() {
     useEffect(() => {
         const connectPlayer = async () => {
             if (!accessToken) return;
-    
+
             const script = document.querySelector('script[src="https://sdk.scdn.co/spotify-player.js"]');
             if (!script) {
                 const newScript = document.createElement('script');
                 newScript.src = "https://sdk.scdn.co/spotify-player.js";
                 newScript.async = true;
                 document.body.appendChild(newScript);
-    
+
                 newScript.onload = () => initializePlayer();
             } else if (window.Spotify && window.Spotify.Player) {
                 initializePlayer();
             }
         };
-    
+
         const initializePlayer = () => {
             const player = new window.Spotify.Player({
                 name: 'RouletteFM Player',
                 getOAuthToken: (cb) => cb(accessToken),
                 volume: 0.5,
             });
-    
+
             player.addListener('ready', ({ device_id }) => {
                 console.log('Web Player ready with Device ID', device_id);
                 setDeviceId(device_id);
             });
-    
+
             player.addListener('not_ready', ({ device_id }) => {
                 console.warn('Web Player not ready with Device ID', device_id);
             });
-    
+
             player.addListener('initialization_error', ({ message }) => console.error(message));
             player.addListener('authentication_error', ({ message }) => console.error(message));
             player.addListener('account_error', ({ message }) => console.error(message));
             player.addListener('playback_error', ({ message }) => console.error(message));
-    
+
             player.connect();
             setWebPlayer(player);
         };
 
-        socket.on('lobbyUpdated', (updatedLobby) => {
+                socket.on('lobbyUpdated', (updatedLobby) => {
             setLobby(updatedLobby);
         });        
         socket.on('playerListUpdate', (players)=>{
@@ -123,7 +123,7 @@ function App() {
         });
         socket.on('nameTaken', ()=>{
             alert('This name is already being used in the lobby you are trying to join. Please enter a different name.');
-
+        
         })
         socket.on('lobbyJoined', (lobbyData) => {
             setLobby(lobbyData);
@@ -150,7 +150,7 @@ function App() {
         if (accessToken && name) {
             socket.emit('createLobby', { token: accessToken, name });
         }
-        else{
+else{
             console.log('no token or name');
         }
     };
@@ -174,13 +174,7 @@ function App() {
         setLeader(false);
         socket.disconnect();
         socket.connect();
-    }
-
-    const handleSaveSettings = () => {
-        if(isLeader && lobby){
-            socket.emit('saveSettings', {rounds, duration, lobbyId: lobby.id});
-        }
-    }
+    };
 
     const startGame = () => {
         if (isLeader && lobby) {
@@ -188,14 +182,11 @@ function App() {
         }
     };
 
-
-    
-
     if (!authenticated) {
         return (
             <div>
                 <h1>RouletteFM</h1>
-                <a href="http://localhost:3001/login">Login with Spotify</a>
+                <a href={`${process.env.REACT_APP_SERVER_URL}/login`}>Login with Spotify</a>
             </div>
         );
     }
@@ -212,33 +203,17 @@ function App() {
                             <li key={index}>{player.name}</li> 
                         ))}
                     </ul>
+                    <GameSettings
+                        rounds={rounds}
+                        setRounds={setRounds}
+                        duration={duration}
+                        setDuration={setDuration}
+                        isLeader={isLeader}
+                        socket={socket}
+                        lobbyId={lobby.id}
+                    />
                     {isLeader ? (
                         <div>
-                            <h3>Game Settings (Only Leader can change):</h3>
-
-                            {/* Rounds Setting */}
-                            <label>
-                                Number of Rounds:
-                                <select value={rounds} onChange={(e) => setRounds(parseInt(e.target.value))}>
-                                    <option value={5}>5</option>
-                                    <option value={10}>10</option>
-                                    <option value={15}>15</option>
-                                    <option value={20}>20</option>
-                                </select>
-                            </label>
-
-                            {/* Duration Setting */}
-                            <label>
-                                Round Duration (seconds):
-                                <select value={duration} onChange={(e) => setDuration(parseInt(e.target.value))}>
-                                    <option value={10}>10</option>
-                                    <option value={20}>20</option>
-                                    <option value={30}>30</option>
-                                </select>
-                            </label>
-                            <br />
-                            <button onClick={handleSaveSettings}>Save Settings</button>
-                            <br/>
                             <button onClick={startGame}>Start Game</button>
                             <br/>
                             <button onClick={exitLobby}>Exit Lobby</button>
@@ -246,15 +221,12 @@ function App() {
                     ) : (
                         <div>
                             <button onClick={exitLobby}>Exit Lobby</button>
-                            <h3>Game Settings:</h3>
-                            <p>Number of Rounds: {rounds}</p>
-                            <p>Round Duration: {duration} seconds</p>
                         </div>
                     )}
                 </div>
             ) : lobby ? (
                 <Game
-                    players ={players}
+                    players={players}
                     setPlayers={setPlayers} 
                     socket={socket} 
                     isLeader={isLeader} 
@@ -280,7 +252,7 @@ function App() {
                 />
             ) : (
                 <div className='home'>
-                  <input
+                    <input
                         type="text"
                         placeholder="Enter your name"
                         value={name}

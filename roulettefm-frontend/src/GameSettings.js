@@ -33,6 +33,7 @@ function GameSettings({ rounds, setRounds, duration, setDuration, isLeader, sock
                         <option value={20}>20</option>
                     </select>
                 </label>
+                <br/>
                 <label>
                     Round Duration (seconds):
                     <select value={duration} onChange={handleDurationChange} disabled={!isLeader}>

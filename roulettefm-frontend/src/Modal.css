@@ -11,7 +11,7 @@
 }
 
 .modal {
-    background: white;
+    background: #3a3d3b;
     padding: 20px;
     border-radius: 5px;
     width: 300px;
@@ -26,4 +26,7 @@
     border: none;
     font-size: 1.5em;
     cursor: pointer;
+}
+h3{
+    text-align: center;
 }
