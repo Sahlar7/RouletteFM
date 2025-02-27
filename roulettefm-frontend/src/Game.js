@@ -22,7 +22,6 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
 
     };
     const resetGameState = async () =>{
-        //await webPlayer.disconnect().catch((error) => console.error('Error disconnecting player:', error));
         
         setTimer(duration);
         setResults({});
@@ -61,12 +60,6 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
 
         const playEndpoint = `https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`;
         try {
-            // Pause current playback first (if any)
-            //await webPlayer.pause().catch((error) => console.warn('Error pausing previous track:', error));
-
-            
-
-            // Start playing the new song
             await fetch(playEndpoint, {
                 method: 'PUT',
                 body: JSON.stringify({ uris: [track.uri] }),
@@ -75,7 +68,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
                     Authorization: `Bearer ${accessToken}`,
                 },
             });
-
+            
             console.log(`Playing: ${track.name}`);
 
             timerRef.current = setInterval(() => {
@@ -107,12 +100,6 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
     }, [questions, round, gamePhase, playSongClip, deviceId, webPlayer]);
 
     useEffect(() => {
-        socket.on('gameReady', ({ gamePhase, round, questions }) => {
-            if (questions[round - 1] && gamePhase === 'guessing') {
-                const track = questions[round - 1].track
-                playSongClip(track);
-            }
-        });
         socket.on('updateRound', ({ round, gamePhase }) => {
             setRound(round);
             setGamePhase(gamePhase);

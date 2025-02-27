@@ -108,47 +108,6 @@ catch (error){
         return () => clearInterval(interval);
     }, [expirationTime, accessToken]);
 
-   /* useEffect(() => {
-        const connectPlayer = async () => {
-            if (!accessToken) return;
-
-            const script = document.querySelector('script[src="https://sdk.scdn.co/spotify-player.js"]');
-            if (!script) {
-                const newScript = document.createElement('script');
-                newScript.src = "https://sdk.scdn.co/spotify-player.js";
-                newScript.async = true;
-                document.body.appendChild(newScript);
-            }
-            window.onSpotifyWebPlaybackSDKReady = () => initializePlayer();
-        };
-
-        const initializePlayer = () => {
-            const player = new window.Spotify.Player({
-                name: 'RouletteFM Player',
-                getOAuthToken: (cb) => cb(accessToken),
-                volume: 0.5,
-            });
-
-            player.addListener('ready', ({ device_id }) => {
-                console.log('Web Player ready with Device ID', device_id);
-                setDeviceId(device_id);
-            });
-
-            player.addListener('not_ready', ({ device_id }) => {
-                console.warn('Web Player not ready with Device ID', device_id);
-            });
-
-            player.addListener('initialization_error', ({ message }) => console.error(message));
-            player.addListener('authentication_error', ({ message }) => console.error(message));
-            player.addListener('account_error', ({ message }) => console.error(message));
-            player.addListener('playback_error', ({ message }) => console.error(message));
-
-            player.connect();
-            setWebPlayer(player);
-        };
-        connectPlayer();
-    }, [accessToken]);*/
-
     useEffect(() => {
         socket.on('lobbyUpdated', (updatedLobby) => {
             setLobby(updatedLobby);
@@ -170,7 +129,6 @@ catch (error){
             setRound(round);
             setQuestions(questions);
             setGamePhase(gamePhase);
-            //connectPlayer();
         });
         socket.on('nameTaken', ()=>{
             alert('This name is already being used in the lobby you are trying to join. Please enter a different name.');
@@ -179,13 +137,13 @@ catch (error){
         socket.on('lobbyJoined', (lobbyData) => {
             setLobby(lobbyData);
             console.log('Lobby joined:', lobbyData);
-            setGamePhase('lobby'); // Set initial game state to lobby
+            setGamePhase('lobby');
         });
         socket.on('lobbyCreated', (lobbyData) => {
             setLobby(lobbyData);
             console.log('Lobby created:', lobbyData);
             setLeader(true);
-            setGamePhase('lobby'); // Set initial game state to lobby
+            setGamePhase('lobby');
         });
         return () => {
             socket.off('nameTaken');
