@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 import Game from './Game';
 import GameSettings from './GameSettings';
-import './App.css'; // Import the CSS file
+import './Home.css';
+import logo from './assets/RouletteFmLogo2.png';
 
 const socket = io(process.env.REACT_APP_SERVER_URL, {
     transports: ['websocket', 'polling'], 
@@ -12,6 +13,7 @@ const socket = io(process.env.REACT_APP_SERVER_URL, {
 function App() {
     const [authenticated, setAuthenticated] = useState(false);
     const [accessToken, setAccessToken] = useState('');
+    const [expirationTime, setExpirationTime] = useState(null);
     const [lobby, setLobby] = useState(null);
     const [isLeader, setLeader] = useState(false);
     const [gamePhase, setGamePhase] = useState('lobby'); 
@@ -30,9 +32,13 @@ function App() {
             .split('; ')
             .find(row => row.startsWith('access_token='))
             ?.split('=')[1];
-        
-        if (token) {
+        const expiration = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('expiration_time='))
+            ?.split('=')[1];
+        if (token && expiration) {
             setAccessToken(token);
+            setExpirationTime(parseInt(expiration, 10));
             setAuthenticated(true);
         }
     }, []);
@@ -46,18 +52,20 @@ function App() {
                 });
                 const data = await response.json();
                 setAccessToken(data.access_token);
+                setExpirationTime(data.expiration_time);
                 console.log("token refreshed");
             }
 catch (error){
                 console.error('Error refreshing access token:', error);
             }
         };
-
-        const interval = setInterval(refreshAccessToken, 30 * 60 * 1000);
-        return () => clearInterval(interval);
-    })
-
-    useEffect(() => {
+        const checkExpiration = () => {
+            if(Date.now() >= expirationTime){
+                refreshAccessToken();
+            }
+        };
+        checkExpiration();
+        const interval = setInterval(checkExpiration, 1 * 60 * 1000);
         const connectPlayer = async () => {
             if (!accessToken) return;
 
@@ -67,11 +75,8 @@ catch (error){
                 newScript.src = "https://sdk.scdn.co/spotify-player.js";
                 newScript.async = true;
                 document.body.appendChild(newScript);
-
-                newScript.onload = () => initializePlayer();
-            } else if (window.Spotify && window.Spotify.Player) {
-                initializePlayer();
             }
+            window.onSpotifyWebPlaybackSDKReady = () => initializePlayer();
         };
 
         const initializePlayer = () => {
@@ -98,8 +103,54 @@ catch (error){
             player.connect();
             setWebPlayer(player);
         };
+        connectPlayer();
 
-                socket.on('lobbyUpdated', (updatedLobby) => {
+        return () => clearInterval(interval);
+    }, [expirationTime, accessToken]);
+
+   /* useEffect(() => {
+        const connectPlayer = async () => {
+            if (!accessToken) return;
+
+            const script = document.querySelector('script[src="https://sdk.scdn.co/spotify-player.js"]');
+            if (!script) {
+                const newScript = document.createElement('script');
+                newScript.src = "https://sdk.scdn.co/spotify-player.js";
+                newScript.async = true;
+                document.body.appendChild(newScript);
+            }
+            window.onSpotifyWebPlaybackSDKReady = () => initializePlayer();
+        };
+
+        const initializePlayer = () => {
+            const player = new window.Spotify.Player({
+                name: 'RouletteFM Player',
+                getOAuthToken: (cb) => cb(accessToken),
+                volume: 0.5,
+            });
+
+            player.addListener('ready', ({ device_id }) => {
+                console.log('Web Player ready with Device ID', device_id);
+                setDeviceId(device_id);
+            });
+
+            player.addListener('not_ready', ({ device_id }) => {
+                console.warn('Web Player not ready with Device ID', device_id);
+            });
+
+            player.addListener('initialization_error', ({ message }) => console.error(message));
+            player.addListener('authentication_error', ({ message }) => console.error(message));
+            player.addListener('account_error', ({ message }) => console.error(message));
+            player.addListener('playback_error', ({ message }) => console.error(message));
+
+            player.connect();
+            setWebPlayer(player);
+        };
+        connectPlayer();
+    }, [accessToken]);*/
+
+    useEffect(() => {
+        socket.on('lobbyUpdated', (updatedLobby) => {
             setLobby(updatedLobby);
         });        
         socket.on('playerListUpdate', (players)=>{
@@ -119,7 +170,7 @@ catch (error){
             setRound(round);
             setQuestions(questions);
             setGamePhase(gamePhase);
-            connectPlayer();
+            //connectPlayer();
         });
         socket.on('nameTaken', ()=>{
             alert('This name is already being used in the lobby you are trying to join. Please enter a different name.');
@@ -185,7 +236,7 @@ else{
     if (!authenticated) {
         return (
             <div>
-                <h1>RouletteFM</h1>
+                <h1><img src={logo}/></h1>
                 <a href={`${process.env.REACT_APP_SERVER_URL}/login`}>Login with Spotify</a>
             </div>
         );
@@ -193,7 +244,7 @@ else{
 
     return (
         <div>
-            <h1>RouletteFM</h1>
+            <h1><img src={logo}/></h1>
             {gamePhase === 'lobby' && lobby ? (
                 <div>
                     <h2>Lobby ID: {lobby.id}</h2>

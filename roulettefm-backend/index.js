@@ -34,11 +34,11 @@ const generateRandomString = (length) => {
 
 // Routes to handle Spotify authentication
 app.get('/', (req, res) => {
-    res.redirect('http://localhost:3000');
+    res.redirect(process.env.FRONTEND_URL);
 });
 app.get('/login', (req, res) => {
     const state = generateRandomString(16);
-    const scope = 'user-read-private user-read-email playlist-read-private user-library-read streaming user-modify-playback-state';
+    const scope = 'user-read-private user-read-email playlist-read-private user-library-read streaming user-library-modify user-modify-playback-state';
 
     res.redirect(`https://accounts.spotify.com/authorize?response_type=code&client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`);
 });
@@ -58,9 +58,11 @@ app.get('/callback', async (req, res) => {
                 }
             });
 
-            const { access_token, refresh_token } = result.data;
+            const { access_token, refresh_token, expires_in } = result.data;
+            const expiration_time = Date.now() + expires_in * 1000;
             res.cookie('access_token', access_token);
             res.cookie('refresh_token', refresh_token)
+            res.cookie('expiration_time', expiration_time);
             res.redirect('/');
         } catch (error) {
             console.error(error);
@@ -88,16 +90,16 @@ app.get('/refresh_token', async (req, res) => {
             },
         });
 
-        const { access_token } = response.data;
-        res.json({ access_token });
+        const { access_token, expires_in } = response.data;
+        const expiration_time = Date.now() + expires_in * 1000;
+        res.cookie('access_token', access_token, { httpOnly: true });
+        res.cookie('expiration_time', expiration_time, { httpOnly: true });
+        res.json({ access_token, expiration_time });
     } catch (error) {
         console.error('Error refreshing token:', error);
         res.status(500).json({ error: 'Failed to refresh token' });
     }
 })
-
-
-
 
 function selectRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
@@ -158,7 +160,7 @@ async function selectRandomSong(players, rounds) {
     
             // Step 3: Randomly select a track from that player's saved tracks
             const randomTrack = selectRandom(randomPlayerData.tracks);
-            const filteredTrack = {name: randomTrack.name, artists: randomTrack.artists, uri: randomTrack.uri};
+            const filteredTrack = {name: randomTrack.name, artists: randomTrack.artists, uri: randomTrack.uri, album: randomTrack.album, id: randomTrack.id};
             const questionExists = questions.some(
                 q => q.track.uri === filteredTrack.uri && q.playerName === randomPlayerName
             );
@@ -174,6 +176,20 @@ async function selectRandomSong(players, rounds) {
     } catch (error) {
         console.error('Error selecting random song:', error);
         return null; // Return null if something goes wrong
+    }
+}
+
+async function saveTrack(accessToken, trackId) {
+    try {
+        const response = await axios.put(`https://api.spotify.com/v1/me/tracks?ids=${trackId}`, null, {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+            },
+        });
+        return response.status === 200;
+    } catch (error) {
+        console.error('Error saving track:', error);
+        return false;
     }
 }
 
@@ -300,6 +316,9 @@ io.on('connection', (socket) => {
             lobbies[lobbyId].gameState = 'roundResults';
             io.to(lobbyId).emit('roundResults', results);
         }
+    });
+    socket.on('saveTrack', ({trackId, token}) => {
+        saveTrack(token, trackId);
     });
     socket.on('backToLobby', ({lobbyId, token, name})=>{
         if(lobbies[lobbyId].gamePhase != 'lobby'){
