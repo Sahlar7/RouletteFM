@@ -73,7 +73,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
 
             timerRef.current = setInterval(() => {
                 setTimer((prev) => {
-                    if (prev <= 1) {
+                    if (prev <= 0.01) {
                         submitGuess('No Guess');
                         return 0;
                     }
@@ -86,7 +86,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
     };
 
     const saveToSpotify = (track) => {
-        socket.emit('saveTrack', {trackId: track.id, token: accessToken});
+        //socket.emit('saveTrack', {trackId: track.id, token: accessToken});
     };
 
     useEffect(() => {

@@ -164,6 +164,9 @@ else{
         }
     };
 
+    const spotifyLogin = () => {
+        window.open(`${process.env.REACT_APP_SERVER_URL}/login`, '_self');
+    }
     const joinLobby = () => {
         console.log(joinId);
         if(!joinId || !name){
@@ -195,7 +198,7 @@ else{
         return (
             <div>
                 <h1><img src={logo}/></h1>
-                <a href={`${process.env.REACT_APP_SERVER_URL}/login`}>Login with Spotify</a>
+                <button onClick={spotifyLogin}>Login with Spotify</button>
             </div>
         );
     }

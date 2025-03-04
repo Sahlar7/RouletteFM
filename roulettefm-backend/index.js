@@ -12,7 +12,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({
-    origin: 'http://localhost:3000', // Allow the React frontend to access the backend
+    origin: process.env.FRONTEND_URL, // Allow the React frontend to access the backend
     credentials: true,
 }));
 app.use(cookieParser());
@@ -198,7 +198,7 @@ const server = http.createServer(app); // Create HTTP server
 
 const io = new Server(server, {
     cors: {
-        origin: 'http://localhost:3000', // Allow requests from React frontend
+        origin: process.env.FRONTEND_URL, // Allow requests from React frontend
         methods: ['GET', 'POST'],
         credentials: true,
     },
