@@ -38,7 +38,7 @@ app.get('/', (req, res) => {
 });
 app.get('/login', (req, res) => {
     const state = generateRandomString(16);
-    const scope = 'user-read-private user-read-email playlist-read-private user-library-read streaming user-library-modify user-modify-playback-state';
+    const scope = 'user-read-private user-read-email playlist-read-private user-library-read streaming user-library-modify user-modify-playback-state playlist-modify-private playlist-modify-public';
 
     res.redirect(`https://accounts.spotify.com/authorize?response_type=code&client_id=${clientId}&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`);
 });
@@ -61,7 +61,7 @@ app.get('/callback', async (req, res) => {
             const { access_token, refresh_token, expires_in } = result.data;
             const expiration_time = Date.now() + expires_in * 1000;
             res.cookie('access_token', access_token);
-            res.cookie('refresh_token', refresh_token)
+            res.cookie('refresh_token', refresh_token);
             res.cookie('expiration_time', expiration_time);
             res.redirect('/');
         } catch (error) {
@@ -92,8 +92,8 @@ app.get('/refresh_token', async (req, res) => {
 
         const { access_token, expires_in } = response.data;
         const expiration_time = Date.now() + expires_in * 1000;
-        res.cookie('access_token', access_token, { httpOnly: true });
-        res.cookie('expiration_time', expiration_time, { httpOnly: true });
+        res.cookie('access_token', access_token);
+        res.cookie('expiration_time', expiration_time);
         res.json({ access_token, expiration_time });
     } catch (error) {
         console.error('Error refreshing token:', error);
@@ -179,16 +179,36 @@ async function selectRandomSong(players, rounds) {
     }
 }
 
-async function saveTrack(accessToken, trackId) {
+async function createRecapPlaylist(accessToken, trackUris, playlistName) {
     try {
-        const response = await axios.put(`https://api.spotify.com/v1/me/tracks?ids=${trackId}`, null, {
+        const response = await axios.post(`https://api.spotify.com/v1/me/playlists`, {
+                name: playlistName,
+                description: 'A recap of your Roulette.FM game!',
+                public: false
+        }, {
             headers: {
-                Authorization: `Bearer ${accessToken}`,
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
             },
         });
-        return response.status === 200;
+        const playlistLink = response.data.external_urls.spotify;
+        const playlistId = response.data.id;
+            try{
+                await axios.post(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`, {
+                    uris: trackUris,
+                }, {
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                return playlistLink;
+        } catch (error) {
+            console.error('Error adding tracks to playlist:', error);
+            return false;
+        }
     } catch (error) {
-        console.error('Error saving track:', error);
+        console.error('Error creating playlist:', error);
         return false;
     }
 }
@@ -317,8 +337,11 @@ io.on('connection', (socket) => {
             io.to(lobbyId).emit('roundResults', results);
         }
     });
-    socket.on('saveTrack', ({trackId, token}) => {
-        saveTrack(token, trackId);
+    socket.on('makeRecap', async ({trackUris, token, playlistName}) => {
+        const recapLink = await createRecapPlaylist(token, trackUris, playlistName);
+        if(recapLink){
+            io.to(socket.id).emit('recapCreated', recapLink);
+        }
     });
     socket.on('backToLobby', ({lobbyId, token, name})=>{
         if(lobbies[lobbyId].gamePhase != 'lobby'){

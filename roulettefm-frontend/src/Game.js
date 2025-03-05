@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './Game.css';
+import CreateRecap from './CreateRecap';
 
 function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePhase, setGamePhase, rounds, setRounds, duration, setDuration, accessToken, setLobby, round, setRound, questions, setQuestions, webPlayer, setWebPlayer, deviceId, setDeviceId, name}) {
     const [results, setResults] = useState({});
@@ -85,9 +86,6 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
         }
     };
 
-    const saveToSpotify = (track) => {
-        //socket.emit('saveTrack', {trackId: track.id, token: accessToken});
-    };
 
     useEffect(() => {
         if (round === 1 && !firstPlay.current && deviceId && webPlayer) {
@@ -181,16 +179,18 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
                                 </li>
                             ))}
                     </ol>
-                    <ul>
+                    <p>
                     {questions.map((question, index) => (
-                                <li key={index}>
-                                    <span>{question.track.name} by {question.track.artists[0].name}
-                                        <img src={question.track.album.images[0].url} alt={question.track.name} style={{ width: '100px', height: '100px' }}/>
-                                    </span>
-                                    <button onClick={saveToSpotify(question.track)}>Save on Spotify</button>
-                                </li>
+                                <span key={index}>
+                                        <img src={question.track.album.images[0].url} alt={question.track.name} style={{ width: '100px', height: '100px', padding: '10px' }}/>
+                                </span>
                         ))}
-                    </ul>
+                    </p>
+                    <CreateRecap 
+                    questions={questions}
+                    accessToken={accessToken}
+                    socket={socket}
+                    />
                     <button onClick={backToLobby}>Return to Lobby</button>
                     <span>or</span>
                     <button onClick={backToHome}>Return to Home Menu</button>

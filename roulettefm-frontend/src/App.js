@@ -65,7 +65,7 @@ catch (error){
             }
         };
         checkExpiration();
-        const interval = setInterval(checkExpiration, 1 * 60 * 1000);
+        const interval = setInterval(checkExpiration, 60 * 60 * 1000);
         const connectPlayer = async () => {
             if (!accessToken) return;
 
