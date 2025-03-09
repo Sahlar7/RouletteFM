@@ -233,6 +233,8 @@ io.on('connection', (socket) => {
     socket.on('createLobby', ({ token, name }) => {
         const lobbyId = Math.random().toString(36).substr(2, 9);
         lobbies[lobbyId] = { id: lobbyId, players: [{token, name, socketId: socket.id}], gameState: 'lobby'};
+        lobbies[lobbyId].rounds = 5;
+        lobbies[lobbyId].duration = 10;
         socket.join(lobbyId);
         socket.emit('lobbyCreated', lobbies[lobbyId]);
         io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
@@ -249,6 +251,7 @@ io.on('connection', (socket) => {
                 socket.join(lobbyId);
                 io.to(lobbyId).emit('lobbyJoined', lobbies[lobbyId]);
                 io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
+                io.to(socket.id).emit('settingsUpdated', {rounds: lobbies[lobbyId].rounds, duration: lobbies[lobbyId].duration});
             }
         }
 
