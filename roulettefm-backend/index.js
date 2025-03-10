@@ -337,7 +337,7 @@ io.on('connection', (socket) => {
                 };
             });
             lobbies[lobbyId].gameState = 'roundResults';
-            io.to(lobbyId).emit('roundResults', results);
+            io.to(lobbyId).emit('roundResults', {results: results, points: lobbies[lobbyId].points});
         }
     });
     socket.on('makeRecap', async ({trackUris, token, playlistName}) => {

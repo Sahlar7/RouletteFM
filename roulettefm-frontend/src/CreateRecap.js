@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Modal from './modal';
+import Button from './Button';
 
 function CreateRecap({ questions, accessToken, socket }) {
     const [isOpen, setIsOpen] = useState(false);
-    const [playlistName, setPlaylistName] = useState('');
+    const [playlistName, setPlaylistName] = useState('My Roulette Recap');
     const [recapLink, setRecapLink] = useState('');
 
     const openModal = () => setIsOpen(true);
@@ -11,8 +12,9 @@ function CreateRecap({ questions, accessToken, socket }) {
 
     const createRecap = () => {
         const trackUris = questions.map((question) => question.track.uri);
-        socket.emit('makeRecap', {trackUris: trackUris, token: accessToken, playlistName: playlistName});
+        socket.emit('makeRecap', { trackUris, token: accessToken, playlistName });
     };
+
     useEffect(() => {
         socket.on('recapCreated', (recapLink) => {
             setRecapLink(recapLink);
@@ -24,20 +26,22 @@ function CreateRecap({ questions, accessToken, socket }) {
 
     return (
         <div>
-            <button onClick={openModal}>Create Roulette Recap</button>
+            <Button onClick={openModal}>Create Roulette Recap</Button>
             <Modal isOpen={isOpen} onClose={closeModal}>
-            {recapLink? (<a href={
-                recapLink} target="_blank" rel="noopener noreferrer">Recap Created! Click here to view</a>
-            ) : (
-                <div>
-                    <label>Playlsit Name</label>
-                    <input type="text" 
-                    default="My Roulette Recap" 
-                    onChange={(e)=>setPlaylistName(e.target.value)}/>
-                    <button onClick={createRecap}>
-                        Create Recap
-                    </button>
-                </div>
+                {recapLink ? (
+                    <a href={recapLink} target="_blank" rel="noopener noreferrer">
+                        Recap Created! Click here to view
+                    </a>
+                ) : (
+                    <div>
+                        <label>Playlist Name</label>
+                        <input
+                            type="text"
+                            value={playlistName}
+                            onChange={(e) => setPlaylistName(e.target.value)}
+                        />
+                        <Button onClick={createRecap}>Create Recap</Button>
+                    </div>
                 )}
             </Modal>
         </div>

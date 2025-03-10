@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import io from 'socket.io-client';
 import Game from './Game';
 import GameSettings from './GameSettings';
+import Button from './Button';
+import Modal from './modal';
 import './Home.css';
 import logo from './assets/RouletteFmLogo2.png';
 
 const socket = io(process.env.REACT_APP_SERVER_URL, {
-    transports: ['websocket', 'polling'], 
-    withCredentials: true, 
+    transports: ['websocket', 'polling'],
+    withCredentials: true,
 });
 
 function App() {
@@ -16,16 +18,19 @@ function App() {
     const [expirationTime, setExpirationTime] = useState(null);
     const [lobby, setLobby] = useState(null);
     const [isLeader, setLeader] = useState(false);
-    const [gamePhase, setGamePhase] = useState('lobby'); 
+    const [gamePhase, setGamePhase] = useState('lobby');
     const [name, setName] = useState('');
     const [players, setPlayers] = useState([]);
-    const [rounds, setRounds] = useState(5); 
+    const [rounds, setRounds] = useState(5);
     const [duration, setDuration] = useState(10);
     const [joinId, setJoinId] = useState('');
     const [round, setRound] = useState(0);
     const [questions, setQuestions] = useState([]);
     const [webPlayer, setWebPlayer] = useState(null);
     const [deviceId, setDeviceId] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [loadingAction, setLoadingAction] = useState('');
+    const [warning, setWarning] = useState('');
 
     useEffect(() => {
         const token = document.cookie
@@ -45,7 +50,9 @@ function App() {
 
     useEffect(() => {
         const refreshAccessToken = async () => {
-            try{
+            try {
+                setIsLoading(true);
+                setLoadingAction('refreshing');
                 const response = await fetch(`${process.env.REACT_APP_SERVER_URL}/refresh_token`, {
                     method: 'GET',
                     credentials: 'include',
@@ -53,19 +60,25 @@ function App() {
                 const data = await response.json();
                 setAccessToken(data.access_token);
                 setExpirationTime(data.expiration_time);
+                setIsLoading(false);
+                setLoadingAction('');
                 console.log("token refreshed");
-            }
-catch (error){
+            } catch (error) {
                 console.error('Error refreshing access token:', error);
+                setIsLoading(false);
+                setLoadingAction('');
             }
         };
+        
         const checkExpiration = () => {
-            if(Date.now() >= expirationTime){
+            if (Date.now() >= expirationTime) {
                 refreshAccessToken();
             }
         };
+        
         checkExpiration();
         const interval = setInterval(checkExpiration, 60 * 60 * 1000);
+        
         const connectPlayer = async () => {
             if (!accessToken) return;
 
@@ -111,110 +124,181 @@ catch (error){
     useEffect(() => {
         socket.on('lobbyUpdated', (updatedLobby) => {
             setLobby(updatedLobby);
-        });        
-        socket.on('playerListUpdate', (players)=>{
+        });
+        
+        socket.on('playerListUpdate', (players) => {
             setPlayers(players);
-            if(players.length === 1){
+            if (players.length === 1) {
                 setLeader(true);
             }
         });
-        socket.on('setLeader', ()=>{
+        
+        socket.on('setLeader', () => {
             setLeader(true);
         });
+        
         socket.on('settingsUpdated', ({ rounds, duration }) => {
             setRounds(rounds);
             setDuration(duration);
         });
-        socket.on('gameReady', ({gamePhase, round, questions})=>{
+        
+        socket.on('gameReady', ({ gamePhase, round, questions }) => {
             setRound(round);
             setQuestions(questions);
             setGamePhase(gamePhase);
         });
-        socket.on('nameTaken', ()=>{
-            alert('This name is already being used in the lobby you are trying to join. Please enter a different name.');
         
-        })
+        socket.on('nameTaken', () => {
+            setWarning('This name is already being used in the lobby you are trying to join. Please enter a different name.');
+        });
+        
         socket.on('lobbyJoined', (lobbyData) => {
+            setWarning('');
             setLobby(lobbyData);
             console.log('Lobby joined:', lobbyData);
             setGamePhase('lobby');
         });
+        
         socket.on('lobbyCreated', (lobbyData) => {
+            setWarning('');
             setLobby(lobbyData);
             console.log('Lobby created:', lobbyData);
             setLeader(true);
             setGamePhase('lobby');
         });
+        
         return () => {
             socket.off('nameTaken');
             socket.off('lobbyCreated');
-            socket.off('lobbyJoined')
+            socket.off('lobbyJoined');
             socket.off('playerListUpdate');
             socket.off('settingsUpdated');
             socket.off('gameReady');
             socket.off('lobbyUpdated');
         };
     }, [accessToken, webPlayer]);
+
     const createLobby = () => {
-        if (accessToken && name) {
-            socket.emit('createLobby', { token: accessToken, name });
+        if (!name) {
+            setWarning('Please enter your name to create a lobby.');
+            return;
         }
-else{
+
+        if (accessToken && name) {
+            setIsLoading(true);
+            setLoadingAction('creating');
+            socket.emit('createLobby', { token: accessToken, name });
+            
+            // Simulated delay for visual feedback
+            setTimeout(() => {
+                setIsLoading(false);
+                setLoadingAction('');
+            }, 800);
+        } else {
             console.log('no token or name');
         }
     };
 
     const spotifyLogin = () => {
+        setIsLoading(true);
+        setLoadingAction('connecting');
         window.open(`${process.env.REACT_APP_SERVER_URL}/login`, '_self');
-    }
+    };
+
     const joinLobby = () => {
-        console.log(joinId);
-        if(!joinId || !name){
-            alert('Please enter a valid lobby id and a name');
+        if (!joinId || !name) {
+            setWarning('Please enter a valid lobby ID and your name to join a lobby.');
             return;
         }
+
         if (accessToken && name) {
+            setIsLoading(true);
+            setLoadingAction('joining');
             setLeader(false);
             socket.emit('joinLobby', { lobbyId: joinId, token: accessToken, name });
+            
+            // Simulated delay for visual feedback
+            setTimeout(() => {
+                setIsLoading(false);
+                setLoadingAction('');
+            }, 800);
         }
     };
 
-    const exitLobby = () =>{
-        socket.emit('exitLobby', {lobbyId: lobby.id, isLeader})
-        setLobby(null);
-        setPlayers([]);
-        setLeader(false);
-        socket.disconnect();
-        socket.connect();
+    const exitLobby = () => {
+        setIsLoading(true);
+        setLoadingAction('exiting');
+        
+        socket.emit('exitLobby', { lobbyId: lobby.id, isLeader });
+        
+        // Simulated delay for visual feedback
+        setTimeout(() => {
+            setLobby(null);
+            setPlayers([]);
+            setLeader(false);
+            socket.disconnect();
+            socket.connect();
+            setIsLoading(false);
+            setLoadingAction('');
+        }, 800);
     };
 
     const startGame = () => {
         if (isLeader && lobby) {
-            socket.emit('startGame', {lobbyId: lobby.id, rounds: rounds, duration: duration});
+            setIsLoading(true);
+            setLoadingAction('starting');
+            socket.emit('startGame', { lobbyId: lobby.id, rounds: rounds, duration: duration });
+            
+            // Simulated delay for visual feedback
+            setTimeout(() => {
+                setIsLoading(false);
+                setLoadingAction('');
+            }, 800);
         }
     };
 
     if (!authenticated) {
         return (
-            <div>
-                <h1><img src={logo}/></h1>
-                <button onClick={spotifyLogin}>Login with Spotify</button>
+            <div className="container">
+                <div className="home">
+                    <div className="logo-container">
+                        <img src={logo} alt="Roulette.fm Logo" className="logo" />
+                    </div>
+                    <p className="tagline">Guess whose playlist is playing!</p>
+                    <Button 
+                        onClick={spotifyLogin} 
+                        loading={isLoading && loadingAction === 'connecting'}
+                    >
+                        Login with Spotify
+                    </Button>
+                </div>
             </div>
         );
     }
 
     return (
-        <div>
-            <h1><img src={logo}/></h1>
+        <div className="container">
+            <div className="logo-container">
+                <img src={logo} alt="Roulette.fm Logo" className="logo" />
+            </div>
+            
             {gamePhase === 'lobby' && lobby ? (
-                <div>
-                    <h2>Lobby ID: {lobby.id}</h2>
-                    <p>Players in the lobby:</p>
-                    <ul>
+                <div className="lobby-container">
+                    <h2>Game Lobby</h2>
+                    <div className="lobby-id">
+                        Lobby ID: <span>{lobby.id}</span>
+                    </div>
+                    
+                    <h3>Players</h3>
+                    <ul className="player-list">
                         {players.map((player, index) => (
-                            <li key={index}>{player.name}</li> 
+                            <li key={index} className="player-item">
+                                <div className="player-avatar">{player.name.charAt(0)}</div>
+                                <div className="player-name">{player.name}</div>
+                            </li>
                         ))}
                     </ul>
+                    
                     <GameSettings
                         rounds={rounds}
                         setRounds={setRounds}
@@ -224,28 +308,51 @@ else{
                         socket={socket}
                         lobbyId={lobby.id}
                     />
-                    {isLeader ? (
-                        <div>
-                            <button onClick={startGame}>Start Game</button>
-                            <br/>
-                            <button onClick={exitLobby}>Exit Lobby</button>
-                        </div>
-                    ) : (
-                        <div>
-                            <button onClick={exitLobby}>Exit Lobby</button>
-                        </div>
+                    
+                    <div className="footer">
+                        {isLeader ? (
+                            <>
+                                <Button 
+                                    onClick={startGame} 
+                                    loading={isLoading && loadingAction === 'starting'}
+                                    //disabled={players.length < 2}
+                                >
+                                    Start Game
+                                </Button>
+                                <Button 
+                                    onClick={exitLobby} 
+                                    secondary={true}
+                                    loading={isLoading && loadingAction === 'exiting'}
+                                >
+                                    Exit Lobby
+                                </Button>
+                            </>
+                        ) : (
+                            <Button 
+                                onClick={exitLobby} 
+                                loading={isLoading && loadingAction === 'exiting'}
+                            >
+                                Exit Lobby
+                            </Button>
+                        )}
+                    </div>
+                    
+                    {isLeader && players.length < 2 && (
+                        <p className="instruction-text">
+                            Waiting for more players to join. You need at least 2 players to start a game.
+                        </p>
                     )}
                 </div>
             ) : lobby ? (
                 <Game
                     players={players}
-                    setPlayers={setPlayers} 
-                    socket={socket} 
-                    isLeader={isLeader} 
+                    setPlayers={setPlayers}
+                    socket={socket}
+                    isLeader={isLeader}
                     setLeader={setLeader}
                     lobby={lobby}
-                    gamePhase={gamePhase} 
-                    setGamePhase={setGamePhase} 
+                    gamePhase={gamePhase}
+                    setGamePhase={setGamePhase}
                     rounds={rounds}
                     setRounds={setRounds}
                     duration={duration}
@@ -263,24 +370,53 @@ else{
                     name={name}
                 />
             ) : (
-                <div className='home'>
-                    <input
-                        type="text"
-                        placeholder="Enter your name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                    />
-                    <br />
-                    <button onClick={createLobby} disabled={!name}>Create Lobby</button>
-                    <br />
-                    <input
-                        type="text"
-                        placeholder="Enter Lobby ID to Join"
-                        value={joinId}
-                        onChange={(e) => setJoinId(e.target.value)}
-                    />
-                    <br />
-                    <button onClick={joinLobby} disabled={!joinId || !name}>Join Lobby</button>
+                <div className="home">
+                    <p className="instruction-text">
+                        Create a new game or join an existing one with your friends
+                    </p>
+                    
+                    {warning && <p className="warning-text">{warning}</p>}
+                    
+                    <div className="form-group">
+                        <input
+                            type="text"
+                            placeholder="Enter your name"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            className="name-input"
+                        />
+                    </div>
+                    
+                    <div className="actions-container">
+                        <div className="action-card">
+                            <h3>Create New Game</h3>
+                            <Button 
+                                onClick={createLobby} 
+                                loading={isLoading && loadingAction === 'creating'}
+                            >
+                                Create Lobby
+                            </Button>
+                        </div>
+                        
+                        <div className="action-card">
+                            <h3>Join Existing Game</h3>
+                            <div className="form-group">
+                                <input
+                                    type="text"
+                                    placeholder="Enter Lobby ID"
+                                    value={joinId}
+                                    onChange={(e) => setJoinId(e.target.value)}
+                                    className="lobby-input"
+                                />
+                            </div>
+                            <Button 
+                                onClick={joinLobby} 
+                                loading={isLoading && loadingAction === 'joining'}
+                            >
+                                Join Lobby
+                            </Button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
