@@ -98,6 +98,11 @@ h2, h3 {
   opacity: 0.8;
 }
 
+.btn-disabled {
+  opacity: 0.8;
+  pointer-events: none;
+}
+
 .btn-loading .spinner {
   margin-left: 8px;
 }

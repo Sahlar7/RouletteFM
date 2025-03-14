@@ -143,6 +143,8 @@ function App() {
         });
         
         socket.on('gameReady', ({ gamePhase, round, questions }) => {
+            setIsLoading(false);
+            setLoadingAction('');
             setRound(round);
             setQuestions(questions);
             setGamePhase(gamePhase);
@@ -193,7 +195,7 @@ function App() {
             setTimeout(() => {
                 setIsLoading(false);
                 setLoadingAction('');
-            }, 800);
+            }, 200);
         } else {
             console.log('no token or name');
         }
@@ -250,10 +252,10 @@ function App() {
             socket.emit('startGame', { lobbyId: lobby.id, rounds: rounds, duration: duration });
             
             // Simulated delay for visual feedback
-            setTimeout(() => {
+           /* setTimeout(() => {
                 setIsLoading(false);
                 setLoadingAction('');
-            }, 800);
+            }, 800);*/
         }
     };
 
@@ -268,6 +270,7 @@ function App() {
                     <Button 
                         onClick={spotifyLogin} 
                         loading={isLoading && loadingAction === 'connecting'}
+                        disabled={isLoading}
                     >
                         Login with Spotify
                     </Button>
@@ -307,6 +310,7 @@ function App() {
                         isLeader={isLeader}
                         socket={socket}
                         lobbyId={lobby.id}
+                        isLoading={isLoading}
                     />
                     
                     <div className="footer">
@@ -316,6 +320,7 @@ function App() {
                                     onClick={startGame} 
                                     loading={isLoading && loadingAction === 'starting'}
                                     //disabled={players.length < 2}
+                                    disabled={isLoading}
                                 >
                                     Start Game
                                 </Button>
@@ -323,6 +328,8 @@ function App() {
                                     onClick={exitLobby} 
                                     secondary={true}
                                     loading={isLoading && loadingAction === 'exiting'}
+                                    disabled={isLoading}
+
                                 >
                                     Exit Lobby
                                 </Button>
@@ -331,6 +338,7 @@ function App() {
                             <Button 
                                 onClick={exitLobby} 
                                 loading={isLoading && loadingAction === 'exiting'}
+                                disabled={isLoading}
                             >
                                 Exit Lobby
                             </Button>
@@ -393,6 +401,7 @@ function App() {
                             <Button 
                                 onClick={createLobby} 
                                 loading={isLoading && loadingAction === 'creating'}
+                                disabled={isLoading}
                             >
                                 Create Lobby
                             </Button>
@@ -412,6 +421,7 @@ function App() {
                             <Button 
                                 onClick={joinLobby} 
                                 loading={isLoading && loadingAction === 'joining'}
+                                disabled={isLoading}
                             >
                                 Join Lobby
                             </Button>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Modal from './modal';
 import Button from './Button';
 
-function GameSettings({ rounds, setRounds, duration, setDuration, isLeader, socket, lobbyId }) {
+function GameSettings({ rounds, setRounds, duration, setDuration, isLeader, socket, lobbyId, isLoading }) {
     const [isOpen, setIsOpen] = useState(false);
 
     const openModal = () => setIsOpen(true);
@@ -22,7 +22,7 @@ function GameSettings({ rounds, setRounds, duration, setDuration, isLeader, sock
 
     return (
         <div>
-            <Button onClick={openModal}>Game Settings</Button>
+            <Button onClick={openModal} disabled={isLoading} >Game Settings</Button>
             <Modal isOpen={isOpen} onClose={closeModal}>
                 <h3>Game Settings</h3>
                 <label>

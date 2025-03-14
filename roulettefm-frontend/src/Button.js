@@ -9,7 +9,7 @@ function Button({
   className = '',
   ...props 
 }) {
-  const buttonClass = `btn ${secondary ? 'btn-secondary' : ''} ${loading ? 'btn-loading' : ''} ${className}`;
+  const buttonClass = `btn ${secondary ? 'btn-secondary' : ''} ${loading ? 'btn-loading' : ''} ${disabled ? 'btn-disabled' : ''} ${className}`;
   
   return (
     <button 

@@ -37,7 +37,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
         setTimeout(() => {
             setIsLoading(false);
             setLoadingAction('');
-        }, 800);
+        }, 200);
     };
     
     const resetGameState = async () => {
@@ -191,20 +191,28 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
                                 </div>
                             ) : (
                                 <>
-                                    <p className="instruction-text">Try to guess whose playlist this song is from!</p>
-                                    <div className="guess-grid">
-                                        {players.map((player) => (
-                                            <Button
-                                                key={player.name}
-                                                onClick={() => submitGuess(player.name)}
-                                                loading={isLoading && loadingAction === 'submitting' && selectedGuess === player.name}
-                                                disabled={isLoading || timer <= 0}
-                                                className={`guess-btn ${selectedGuess === player.name ? 'selected' : ''}`}
-                                            >
-                                                {player.name}
-                                            </Button>
-                                        ))}
-                                    </div>
+                                    {selectedGuess ? 
+                                        (
+                                            <p className="instruction-text">Waiting on other players to guess...</p>
+                                        ) : (
+                                            <>
+                                            <p className="instruction-text">Try to guess whose playlist this song is from!</p>
+                                                <div className="guess-grid">
+                                                    {players.map((player) => (
+                                                        <Button
+                                                            key={player.name}
+                                                            onClick={() => submitGuess(player.name)}
+                                                            loading={isLoading && loadingAction === 'submitting' && selectedGuess === player.name}
+                                                            disabled={isLoading || timer <= 0}
+                                                            className={`guess-btn ${selectedGuess === player.name ? 'selected' : ''}`}
+                                                        >
+                                                            {player.name}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )
+                                    }
                                 </>
                             )}
                         </div>
@@ -301,6 +309,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
                             questions={questions}
                             accessToken={accessToken}
                             socket={socket}
+                            isLoading={isLoading}
                         />
                     </div>
                     
@@ -308,6 +317,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
                         <Button 
                             onClick={backToLobby}
                             loading={isLoading && loadingAction === 'returning'}
+                            disabled={isLoading}
                         >
                             Return to Lobby
                         </Button>
@@ -315,6 +325,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
                             onClick={backToHome}
                             secondary={true}
                             loading={isLoading && loadingAction === 'exiting'}
+                            disabled={isLoading}
                         >
                             Exit to Menu
                         </Button>

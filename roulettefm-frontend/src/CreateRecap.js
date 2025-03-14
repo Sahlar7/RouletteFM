@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Modal from './modal';
 import Button from './Button';
 
-function CreateRecap({ questions, accessToken, socket }) {
+function CreateRecap({ questions, accessToken, socket, isLoading }) {
     const [isOpen, setIsOpen] = useState(false);
     const [playlistName, setPlaylistName] = useState('My Roulette Recap');
     const [recapLink, setRecapLink] = useState('');
@@ -26,7 +26,7 @@ function CreateRecap({ questions, accessToken, socket }) {
 
     return (
         <div>
-            <Button onClick={openModal}>Create Roulette Recap</Button>
+            <Button onClick={openModal} disabled={isLoading}>Create Roulette Recap</Button>
             <Modal isOpen={isOpen} onClose={closeModal}>
                 {recapLink ? (
                     <a href={recapLink} target="_blank" rel="noopener noreferrer">
