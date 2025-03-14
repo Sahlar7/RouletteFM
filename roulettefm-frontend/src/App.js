@@ -16,6 +16,7 @@ function App() {
     const [authenticated, setAuthenticated] = useState(false);
     const [accessToken, setAccessToken] = useState('');
     const [expirationTime, setExpirationTime] = useState(null);
+    const [refreshToken, setRefreshToken] = useState('');
     const [lobby, setLobby] = useState(null);
     const [isLeader, setLeader] = useState(false);
     const [gamePhase, setGamePhase] = useState('lobby');
@@ -33,18 +34,39 @@ function App() {
     const [warning, setWarning] = useState('');
 
     useEffect(() => {
-        const token = document.cookie
-            .split('; ')
-            .find(row => row.startsWith('access_token='))
-            ?.split('=')[1];
-        const expiration = document.cookie
-            .split('; ')
-            .find(row => row.startsWith('expiration_time='))
-            ?.split('=')[1];
-        if (token && expiration) {
-            setAccessToken(token);
-            setExpirationTime(parseInt(expiration, 10));
+        const urlParams = new URLSearchParams(window.location.search);
+        const tokenFromUrl = urlParams.get('access_token');
+        const refreshTokenFromUrl = urlParams.get('refresh_token');
+        const expirationFromUrl = urlParams.get('expiration_time');
+        const errorFromUrl = urlParams.get('error');
+        
+        if (tokenFromUrl && refreshTokenFromUrl && expirationFromUrl) {
+            localStorage.setItem('access_token', tokenFromUrl);
+            localStorage.setItem('refresh_token', refreshTokenFromUrl);
+            localStorage.setItem('expiration_time', expirationFromUrl);
+            
+            window.history.replaceState({}, document.title, window.location.pathname);
+            
+            setAccessToken(tokenFromUrl);
+            setRefreshToken(refreshTokenFromUrl);
+            setExpirationTime(parseInt(expirationFromUrl, 10));
             setAuthenticated(true);
+        } 
+        else if (errorFromUrl) {
+            setWarning(`Authentication error: ${errorFromUrl}`);
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+        else {
+            const storedToken = localStorage.getItem('access_token');
+            const storedRefreshToken = localStorage.getItem('refresh_token');
+            const storedExpiration = localStorage.getItem('expiration_time');
+            
+            if (storedToken && storedRefreshToken && storedExpiration) {
+                setAccessToken(storedToken);
+                setRefreshToken(storedRefreshToken);
+                setExpirationTime(parseInt(storedExpiration, 10));
+                setAuthenticated(true);
+            }
         }
     }, []);
 
@@ -53,11 +75,26 @@ function App() {
             try {
                 setIsLoading(true);
                 setLoadingAction('refreshing');
-                const response = await fetch(`${process.env.REACT_APP_SERVER_URL}/refresh_token`, {
-                    method: 'GET',
-                    credentials: 'include',
-                });
+                
+                const storedRefreshToken = localStorage.getItem('refresh_token');
+                if (!storedRefreshToken) {
+                    throw new Error('No refresh token available');
+                }
+                
+                const response = await fetch(
+                    `${process.env.REACT_APP_SERVER_URL}/refresh_token?refresh_token=${encodeURIComponent(storedRefreshToken)}`,
+                    { method: 'GET' }
+                );
+                
                 const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                localStorage.setItem('access_token', data.access_token);
+                localStorage.setItem('expiration_time', data.expiration_time);
+                
                 setAccessToken(data.access_token);
                 setExpirationTime(data.expiration_time);
                 setIsLoading(false);
@@ -67,6 +104,10 @@ function App() {
                 console.error('Error refreshing access token:', error);
                 setIsLoading(false);
                 setLoadingAction('');
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                localStorage.removeItem('expiration_time');
+                setAuthenticated(false);
             }
         };
         
@@ -76,8 +117,7 @@ function App() {
             }
         };
         
-        checkExpiration();
-        const interval = setInterval(checkExpiration, 60 * 60 * 1000);
+        const interval = setInterval(checkExpiration,  60 * 1000);
         
         const connectPlayer = async () => {
             if (!accessToken) return;

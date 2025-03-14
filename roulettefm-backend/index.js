@@ -34,7 +34,7 @@ const generateRandomString = (length) => {
 
 // Routes to handle Spotify authentication
 app.get('/', (req, res) => {
-    res.redirect(process.env.FRONTEND_URL);
+    res.send('Hello from Roulette.FM backend!');
 });
 app.get('/login', (req, res) => {
     const state = generateRandomString(16);
@@ -60,19 +60,19 @@ app.get('/callback', async (req, res) => {
 
             const { access_token, refresh_token, expires_in } = result.data;
             const expiration_time = Date.now() + expires_in * 1000;
-            res.cookie('access_token', access_token);
-            res.cookie('refresh_token', refresh_token);
-            res.cookie('expiration_time', expiration_time);
-            res.redirect('/');
+            
+            res.redirect(`${process.env.FRONTEND_URL}?access_token=${access_token}&refresh_token=${refresh_token}&expiration_time=${expiration_time}`);
         } catch (error) {
-            console.error(error);
-            res.send('Error during token exchange.');
+            console.error('Token exchange error:', error.response ? error.response.data : error.message);
+            res.redirect(`${process.env.FRONTEND_URL}?error=token_exchange_failed`);
         }
+    } else {
+        res.redirect(`${process.env.FRONTEND_URL}?error=authorization_code_missing`);
     }
 });
 
 app.get('/refresh_token', async (req, res) => {
-    const refreshToken = req.cookies.refresh_token;
+    const refreshToken = req.query.refresh_token;
 
     if (!refreshToken) {
         return res.status(400).json({ error: 'Refresh token is missing' });
@@ -92,14 +92,13 @@ app.get('/refresh_token', async (req, res) => {
 
         const { access_token, expires_in } = response.data;
         const expiration_time = Date.now() + expires_in * 1000;
-        res.cookie('access_token', access_token);
-        res.cookie('expiration_time', expiration_time);
+        
         res.json({ access_token, expiration_time });
     } catch (error) {
         console.error('Error refreshing token:', error);
         res.status(500).json({ error: 'Failed to refresh token' });
     }
-})
+});
 
 function selectRandom(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
