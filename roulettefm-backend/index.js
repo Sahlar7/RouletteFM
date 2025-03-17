@@ -233,21 +233,34 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         if(socketLobbies[socket.id]){
             const lobbyId = socketLobbies[socket.id];
+            player = lobbies[lobbyId].players.find(p => p.socketId === socket.id);
             if(lobbies[lobbyId].gameState ==='lobby' || lobbies[lobbyId].gameState === 'finalResults'){
                 lobbies[lobbyId].players = lobbies[lobbyId].players.filter(p => p.socketId !== socket.id);
                 if(lobbies[lobbyId].players.length === 0) {
                     delete lobbies[lobbyId];
                 }
                 else{
+                    if(player.isLeader){
+                        newLeader = lobbies[lobbyId].players[0];
+                        newLeader.isLeader = true;
+                        io.to(newLeader.socketId).emit('setLeader');
+                    }
                     io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
                 }
             }
             else{
-                const player = lobbies[lobbyId].players.find(p=> p.socketId === socket.id);
                 player.connected = false;
                 connectedPlayers = lobbies[lobbyId].players.filter(p => p.connected === true);
                 if(connectedPlayers.length === 0){
                     delete lobbies[lobbyId];
+                }
+                else{
+                    if(player.isLeader){
+                        newLeader = connectedPlayers[0];
+                        newLeader.isLeader = true;
+                        io.to(newLeader.socketId).emit('setLeader');
+                        player.isLeader = false;
+                    }
                 }
             }
         }
@@ -256,7 +269,7 @@ io.on('connection', (socket) => {
 
     socket.on('createLobby', ({ token, name }) => {
         const lobbyId = Math.random().toString(36).substr(2, 9);
-        lobbies[lobbyId] = { id: lobbyId, players: [{token, name, socketId: socket.id, connected: true}], gameState: 'lobby'};
+        lobbies[lobbyId] = { id: lobbyId, players: [{token, name, socketId: socket.id, connected: true, isLeader: true}], gameState: 'lobby'};
         lobbies[lobbyId].rounds = 5;
         lobbies[lobbyId].duration = 10;
         socket.join(lobbyId);
@@ -266,13 +279,19 @@ io.on('connection', (socket) => {
     });
 
     socket.on('joinLobby', ({ lobbyId, token, name }) => {
+        if(!lobbies[lobbyId]){
+            io.to(socket.id).emit('lobbyNotFound');
+        }
         if (lobbies[lobbyId]) {
             const nameUsed = lobbies[lobbyId].players.find(player => player.name===name);
             if(nameUsed){
                 io.to(socket.id).emit('nameTaken');
             }
+            else if(lobbies[lobbyId].gameState != 'lobby'){
+                io.to(socket.id).emit('gameAlreadyStarted');
+            }
             else{
-                lobbies[lobbyId].players.push({token, name, socketId: socket.id, connected: true});
+                lobbies[lobbyId].players.push({token, name, socketId: socket.id, connected: true, isLeader: false});
                 socket.join(lobbyId);
                 socketLobbies[socket.id] = lobbyId;
                 io.to(lobbyId).emit('lobbyJoined', lobbies[lobbyId]);
@@ -282,15 +301,7 @@ io.on('connection', (socket) => {
         }
 
     });
-    socket.on('exitLobby', ({lobbyId, isLeader}) =>{
-        if(lobbies[lobbyId].players.length-1 !== 0) {
-            if(isLeader){
-                newLeader = lobbies[lobbyId].players[0];
-                io.to(newLeader.socketId).emit('setLeader');
-            }
-            io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
-    }
-    })
+    
     socket.on('saveSettings', ({rounds, duration, lobbyId}) =>{
         if(lobbies[lobbyId]){
             lobbies[lobbyId].rounds = rounds;
@@ -377,9 +388,6 @@ io.on('connection', (socket) => {
         if(lobbies[lobbyId].gameState != 'lobby'){
             lobbies[lobbyId].gameState = 'lobby';
         }
-    });
-    socket.on('backToHome', (lobbyId)=>{
-        socket.disconnect(lobbyId);
     });
 });
 

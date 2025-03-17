@@ -14,7 +14,6 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
     const [selectedGuess, setSelectedGuess] = useState(null);
 
     const submitGuess = (guess) => {
-        if (timerRef.current) clearInterval(timerRef.current);
         const timeTaken = duration - timer;
         setSelectedGuess(guess);
         setIsLoading(true);
@@ -69,8 +68,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
         setLoadingAction('exiting');
         
         setTimeout(() => {
-            socket.emit('exitLobby', {lobbyId: lobby.id});
-            socket.emit('backToHome', {lobbyId: lobby.id});
+            socket.disconnect();
             resetGameState();
             setGamePhase('lobby');
             setRounds(5);
@@ -78,7 +76,6 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
             setLobby(null);
             setLeader(false);
             setPlayers([]);
-            socket.disconnect();
             socket.connect();
             setIsLoading(false);
             setLoadingAction('');
@@ -149,6 +146,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
         
         socket.on('roundResults', ({results, points}) => {
             webPlayer.pause().catch((error) => console.error('Error pausing playback:', error));
+            if (timerRef.current) clearInterval(timerRef.current);
             setResults(results);
             setPoints(points);
             setGamePhase('results');
@@ -264,7 +262,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
                                 onClick={startNextRound}
                                 loading={isLoading && loadingAction === 'loading'}
                             >
-                                Next Round
+                                {round < rounds ? 'Next Round' : 'Finish Game'}
                             </Button>
                         </div>
                     )}
@@ -286,7 +284,7 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
                                     <div className="rank">{index + 1}</div>
                                     <div className="player-avatar">{player.charAt(0)}</div>
                                     <div className="player-name">{player}</div>
-                                    <div className="points">{playerPoints}</div>
+                                    <div className="points-badge">Points: {playerPoints}</div>
                                 </li>
                             ))}
                     </ol>

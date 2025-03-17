@@ -214,6 +214,12 @@ function App() {
             setLeader(true);
             setGamePhase('lobby');
         });
+        socket.on('gameAlreadyStarted', () => {
+            setWarning('The game has already started. Please wait for the game to end to join this lobby.');
+        });
+        socket.on('lobbyNotFound', () => {
+            setWarning('Lobby not found. Please check the lobby ID and try again.');
+        });
         
         return () => {
             socket.off('nameTaken');
@@ -223,6 +229,10 @@ function App() {
             socket.off('settingsUpdated');
             socket.off('gameReady');
             socket.off('lobbyUpdated');
+            socket.off('gameStarting');
+            socket.off('setLeader');
+            socket.off('gameAlreadyStarted');
+            socket.off('lobbyNotFound');
         };
     }, [accessToken, webPlayer]);
 
@@ -237,7 +247,6 @@ function App() {
             setLoadingAction('creating');
             socket.emit('createLobby', { token: accessToken, name });
             
-            // Simulated delay for visual feedback
             setTimeout(() => {
                 setIsLoading(false);
                 setLoadingAction('');
@@ -265,7 +274,6 @@ function App() {
             setLeader(false);
             socket.emit('joinLobby', { lobbyId: joinId, token: accessToken, name });
             
-            // Simulated delay for visual feedback
             setTimeout(() => {
                 setIsLoading(false);
                 setLoadingAction('');
@@ -276,15 +284,12 @@ function App() {
     const exitLobby = () => {
         setIsLoading(true);
         setLoadingAction('exiting');
-        
-        socket.emit('exitLobby', { lobbyId: lobby.id, isLeader });
-        
-        // Simulated delay for visual feedback
+                
         setTimeout(() => {
+            socket.disconnect();
             setLobby(null);
             setPlayers([]);
             setLeader(false);
-            socket.disconnect();
             socket.connect();
             setIsLoading(false);
             setLoadingAction('');
@@ -296,12 +301,6 @@ function App() {
             setIsLoading(true);
             setLoadingAction('starting');
             socket.emit('startGame', { lobbyId: lobby.id, rounds: rounds, duration: duration });
-            
-            // Simulated delay for visual feedback
-           /* setTimeout(() => {
-                setIsLoading(false);
-                setLoadingAction('');
-            }, 800);*/
         }
     };
 
