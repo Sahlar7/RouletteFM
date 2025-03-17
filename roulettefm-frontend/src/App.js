@@ -323,6 +323,21 @@ function App() {
             </div>
         );
     }
+    if(/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream){
+        return(
+            <div className="container">
+                <div className="home">
+                    <div className="logo-container">
+                        <img src={logo} alt="Roulette.fm Logo" className="logo" />
+                    </div>
+                    <p className="tagline">Guess whose playlist is playing!</p>
+                    <p className="warning-text">IOS Device compatability is currently under construction!
+                        Please check out https://roulette-fm-frontend.vercel.app on a desktop or android device. We apologize for the inconvenience.
+                    </p>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="container">
