@@ -332,7 +332,7 @@ function App() {
                     </div>
                     <p className="tagline">Guess whose playlist is playing!</p>
                     <p className="warning-text">IOS Device compatability is currently under construction!
-                        Please check out https://roulette-fm-frontend.vercel.app on a desktop or android device. We apologize for the inconvenience.
+                        Please check out https://roulette-fm.vercel.app on a desktop or android device. We apologize for the inconvenience.
                     </p>
                 </div>
             </div>
