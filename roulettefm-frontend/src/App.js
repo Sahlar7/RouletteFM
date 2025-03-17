@@ -116,7 +116,7 @@ function App() {
                 refreshAccessToken();
             }
         };
-        
+        checkExpiration();
         const interval = setInterval(checkExpiration,  60 * 1000);
         
         const connectPlayer = async () => {
@@ -171,6 +171,7 @@ function App() {
             if (players.length === 1) {
                 setLeader(true);
             }
+            console.log(players);
         });
         
         socket.on('setLeader', () => {
@@ -180,6 +181,11 @@ function App() {
         socket.on('settingsUpdated', ({ rounds, duration }) => {
             setRounds(rounds);
             setDuration(duration);
+        });
+
+        socket.on('gameStarting', () => {
+            setIsLoading(true);
+            setLoadingAction('starting');
         });
         
         socket.on('gameReady', ({ gamePhase, round, questions }) => {
@@ -375,13 +381,20 @@ function App() {
                                 </Button>
                             </>
                         ) : (
-                            <Button 
-                                onClick={exitLobby} 
-                                loading={isLoading && loadingAction === 'exiting'}
-                                disabled={isLoading}
-                            >
-                                Exit Lobby
-                            </Button>
+                            <>
+                                {loadingAction === 'gameStarting' ? (
+                                    <p className="instruction-text">Game starting...</p>
+                                ) : (
+                                    <></>
+                                )}
+                                <Button 
+                                    onClick={exitLobby} 
+                                    loading={isLoading && loadingAction === 'exiting'}
+                                    disabled={isLoading}
+                                >
+                                    Exit Lobby
+                                </Button>
+                            </>
                         )}
                     </div>
                     

@@ -4,6 +4,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const { Server } = require('socket.io');
 const http = require('http');
+const { disconnect } = require('process');
 require('dotenv').config();
 
 
@@ -225,16 +226,41 @@ const io = new Server(server, {
 });
 
 const lobbies = {};
-
+const socketLobbies = {};
 io.on('connection', (socket) => {
     console.log('User connected:', socket.id);
 
+    socket.on('disconnect', () => {
+        if(socketLobbies[socket.id]){
+            const lobbyId = socketLobbies[socket.id];
+            if(lobbies[lobbyId].gameState ==='lobby' || lobbies[lobbyId].gameState === 'finalResults'){
+                lobbies[lobbyId].players = lobbies[lobbyId].players.filter(p => p.socketId !== socket.id);
+                if(lobbies[lobbyId].players.length === 0) {
+                    delete lobbies[lobbyId];
+                }
+                else{
+                    io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
+                }
+            }
+            else{
+                const player = lobbies[lobbyId].players.find(p=> p.socketId === socket.id);
+                player.connected = false;
+                connectedPlayers = lobbies[lobbyId].players.filter(p => p.connected === true);
+                if(connectedPlayers.length === 0){
+                    delete lobbies[lobbyId];
+                }
+            }
+        }
+        delete socketLobbies[socket.id];
+    });
+
     socket.on('createLobby', ({ token, name }) => {
         const lobbyId = Math.random().toString(36).substr(2, 9);
-        lobbies[lobbyId] = { id: lobbyId, players: [{token, name, socketId: socket.id}], gameState: 'lobby'};
+        lobbies[lobbyId] = { id: lobbyId, players: [{token, name, socketId: socket.id, connected: true}], gameState: 'lobby'};
         lobbies[lobbyId].rounds = 5;
         lobbies[lobbyId].duration = 10;
         socket.join(lobbyId);
+        socketLobbies[socket.id] = lobbyId;
         socket.emit('lobbyCreated', lobbies[lobbyId]);
         io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
     });
@@ -246,8 +272,9 @@ io.on('connection', (socket) => {
                 io.to(socket.id).emit('nameTaken');
             }
             else{
-                lobbies[lobbyId].players.push({token, name, socketId: socket.id});
+                lobbies[lobbyId].players.push({token, name, socketId: socket.id, connected: true});
                 socket.join(lobbyId);
+                socketLobbies[socket.id] = lobbyId;
                 io.to(lobbyId).emit('lobbyJoined', lobbies[lobbyId]);
                 io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
                 io.to(socket.id).emit('settingsUpdated', {rounds: lobbies[lobbyId].rounds, duration: lobbies[lobbyId].duration});
@@ -256,16 +283,12 @@ io.on('connection', (socket) => {
 
     });
     socket.on('exitLobby', ({lobbyId, isLeader}) =>{
-        lobbies[lobbyId].players = lobbies[lobbyId].players.filter(p => p.socketId !== socket.id);
-        if(lobbies[lobbyId].players.length === 0) {
-            delete lobbies[lobbyId];
-        }
-        else{
-        if(isLeader){
-            newLeader = lobbies[lobbyId].players[0];
-            io.to(newLeader.socketId).emit('setLeader');
-        }
-        io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
+        if(lobbies[lobbyId].players.length-1 !== 0) {
+            if(isLeader){
+                newLeader = lobbies[lobbyId].players[0];
+                io.to(newLeader.socketId).emit('setLeader');
+            }
+            io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
     }
     })
     socket.on('saveSettings', ({rounds, duration, lobbyId}) =>{
@@ -277,6 +300,7 @@ io.on('connection', (socket) => {
     });
     socket.on('startGame', async ({lobbyId, rounds, duration}) => {
         if (lobbies[lobbyId]) {
+            await io.to(lobbyId).emit('gameStarting');
             lobbies[lobbyId].rounds = rounds;
             lobbies[lobbyId].duration = duration;
             lobbies[lobbyId].gameState = 'guessing'; // Update game state
@@ -287,7 +311,6 @@ io.on('connection', (socket) => {
                 return acc;
             }, {});
             try {
-                console.log("start round emission received");
                 // Await the random song selection
                 const questions = await selectRandomSong(lobbies[lobbyId].players, lobbies[lobbyId].rounds);
                 lobbies[lobbyId].questions = questions;
@@ -305,6 +328,8 @@ io.on('connection', (socket) => {
             if(lobbies[lobbyId].currentRound > lobbies[lobbyId].rounds){
                 lobbies[lobbyId].gameState = 'finalResults';
                 io.to(lobbyId).emit('finalResults', {points: lobbies[lobbyId].points, gamePhase: lobbies[lobbyId].gameState});
+                lobbies[lobbyId].players = lobbies[lobbyId].players.filter(player => player.connected === true);
+                io.to(lobbyId).emit('playerListUpdate', lobbies[lobbyId].players);
             }
             else {
                 lobbies[lobbyId].gameState = 'guessing'
@@ -316,7 +341,10 @@ io.on('connection', (socket) => {
     socket.on('addGuess', ({guess, timeTaken, lobbyId}) =>{
         const player = lobbies[lobbyId].players.find(p=> p.socketId === socket.id);
         lobbies[lobbyId].guesses.set(player, guess);
-        if (lobbies[lobbyId].guesses.size === lobbies[lobbyId].players.length) {
+        connectedPlayers = lobbies[lobbyId].players.filter(p => p.connected === true);
+        if (lobbies[lobbyId].guesses.size === connectedPlayers.length) {
+            disconnectedPlayers = lobbies[lobbyId].players.filter(p => p.connected === false);
+            disconnectedPlayers.forEach(player => { lobbies[lobbyId].guesses.set(player, 'Disconnected'); });
             const guesses = lobbies[lobbyId].guesses;
             const round = lobbies[lobbyId].currentRound;
             const correctPlayer = lobbies[lobbyId].questions[round-1].playerName.trim().toLowerCase();
@@ -346,8 +374,8 @@ io.on('connection', (socket) => {
         }
     });
     socket.on('backToLobby', ({lobbyId, token, name})=>{
-        if(lobbies[lobbyId].gamePhase != 'lobby'){
-            lobbies[lobbyId].gamePhase = 'lobby';
+        if(lobbies[lobbyId].gameState != 'lobby'){
+            lobbies[lobbyId].gameState = 'lobby';
         }
     });
     socket.on('backToHome', (lobbyId)=>{
