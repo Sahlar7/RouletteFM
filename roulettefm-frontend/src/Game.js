@@ -90,18 +90,21 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
 
         setIsLoading(true);
         setLoadingAction('loading');
-
+        const randomStartPoint = Math.max(Math.floor(Math.random() * (track.duration_ms-30000)), 0);
         const playEndpoint = `https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`;
         try {
             await fetch(playEndpoint, {
                 method: 'PUT',
-                body: JSON.stringify({ uris: [track.uri] }),
+                body: JSON.stringify({ 
+                    uris: [track.uri],
+                    position_ms: randomStartPoint,
+                }),
                 headers: {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${accessToken}`,
                 },
             });
-            
+
             setIsLoading(false);
             setLoadingAction('');
             

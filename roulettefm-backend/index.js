@@ -160,7 +160,13 @@ async function selectRandomSong(players, rounds) {
     
             // Step 3: Randomly select a track from that player's saved tracks
             const randomTrack = selectRandom(randomPlayerData.tracks);
-            const filteredTrack = {name: randomTrack.name, artists: randomTrack.artists, uri: randomTrack.uri, album: randomTrack.album, id: randomTrack.id};
+            const filteredTrack = {name: randomTrack.name, 
+                artists: randomTrack.artists, 
+                uri: randomTrack.uri, 
+                album: randomTrack.album, 
+                id: randomTrack.id,
+                duration_ms: randomTrack.duration_ms,
+            };
             const questionExists = questions.some(
                 q => q.track.uri === filteredTrack.uri && q.playerName === randomPlayerName
             );

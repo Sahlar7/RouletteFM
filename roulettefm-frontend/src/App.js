@@ -111,13 +111,14 @@ function App() {
             }
         };
         
-        const checkExpiration = () => {
-            if (Date.now() >= expirationTime) {
-                refreshAccessToken();
+        const refreshAndConnectPlayer = async () => {
+            if(Date.now() >= expirationTime) {
+                await refreshAccessToken();
+            }
+            if(accessToken){
+                connectPlayer();
             }
         };
-        checkExpiration();
-        const interval = setInterval(checkExpiration,  60 * 1000);
         
         const connectPlayer = async () => {
             if (!accessToken) return;
@@ -149,15 +150,26 @@ function App() {
             });
 
             player.addListener('initialization_error', ({ message }) => console.error(message));
-            player.addListener('authentication_error', ({ message }) => console.error(message));
+            player.addListener('authentication_error', ({ message }) => {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                localStorage.removeItem('expiration_time');
+                setAuthenticated(false);
+                console.error(message)}
+            );
             player.addListener('account_error', ({ message }) => console.error(message));
             player.addListener('playback_error', ({ message }) => console.error(message));
 
             player.connect();
             setWebPlayer(player);
         };
-        connectPlayer();
+        const interval = setInterval(() => {
+            if (Date.now() >= expirationTime) {
+                refreshAccessToken();
+            }
+        },  60 * 1000);
 
+        refreshAndConnectPlayer();
         return () => clearInterval(interval);
     }, [expirationTime, accessToken]);
 
