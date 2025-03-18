@@ -379,8 +379,7 @@ function App() {
                                 <Button 
                                     onClick={startGame} 
                                     loading={isLoading && loadingAction === 'starting'}
-                                    //disabled={players.length < 2}
-                                    disabled={isLoading}
+                                    disabled={isLoading || players.length < 2}
                                 >
                                     Start Game
                                 </Button>
