@@ -2,16 +2,18 @@
 
 Roulette.FM is a multiplayer music game where players compete by guessing songs from each other's Spotify libraries. The app uses the Spotify API to fetch saved tracks and create a fun, interactive experience. Play with your friends to see how well you know each other's music tastes! 
 
-You can play Roulette.FM today at https://roulettefm.vercel.app
+## How to Play
+You can play Roulette.FM at https://roulettefm.vercel.app. 
+
+Login with your Spotify account (premium subscription required). The Spotify API will request for access to your account information to fetch saved tracks and create recap playlists. **Your account information is NOT stored by Roulette.FM and will not be used beyond the explicit features of the game**. 
+
+Create a live mulitplayer lobby powered by Websockets, and share the lobby ID with your friends. The player who created the lobby will be the leader. The leader can adjust the number of rounds, duration for each round, and is the player who must start the game. 
+
+Each round, a song will be randomly selected from a player's liked Spotify songs, and played through your browser via the Spotify WebPlayback SDK. To get points for that round, guess which player liked the song. The faster you guess, the more points you win! After a set number of rounds, the player with the most points wins.
+
+Additionally, at the end of each game, you can create a Roulette Recap, which is a Spotify playlist made of all the songs from that Roulette.FM game session.
 
 *Note: Development and bug fixes are still in progress
-
-## Features
-- Spotify authentication for players
-- Multiplayer lobbies with real-time updates using WebSockets
-- Randomized song selection from players' liked Spotify songs (selection from other playlists coming soon)
-- Customizable game settings (rounds, duration)
-- Recap playlist creation for the game session
 
 ---
 
