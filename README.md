@@ -23,7 +23,7 @@ You can play Roulette.FM today at https://roulettefm.vercel.app
 
 ### Spotify Developer Account Setup
 1. Navigate to https://developer.spotify.com/ and create an account if necessary. Once you are logged in, navigate to the dashboard.
-2. Click the "create app" button and fill out the form. IMPORTANT: for running locally, make sure your redirect uri is http://localhost:{PORT}/callback, e.g http://localhost:3001/callback. The port number should be whichever port you will host the backend server.
+2. Click the "create app" button and fill out the form. IMPORTANT: for running locally, make sure your redirect uri is ```http://localhost:{PORT}/callback```, e.g ```http://localhost:3001/callback```. The port number should be whichever port you will host the backend server.
 
 ### Installation & Setup
 1. Clone the repository:
@@ -58,5 +58,5 @@ Frontend:
     ```cd roulettefm-frontend```
 2. Start the React app:
     ```npm start```
-3. Open your browser and navigate to http://localhost:3000
+3. Open your browser and navigate to ```http://localhost:3000```
 
