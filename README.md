@@ -29,7 +29,7 @@ Additionally, at the end of each game, you can create a Roulette Recap, which is
 
 ### Spotify Developer Account Setup
 1. Navigate to https://developer.spotify.com/ and create an account if necessary. Once you are logged in, navigate to the dashboard.
-2. Click the "create app" button and fill out the form. IMPORTANT: for running locally, make sure your redirect uri is ```http://localhost:{PORT}/callback```, e.g ```http://localhost:3001/callback```. The port number should be whichever port you will host the backend server (3001 by default).
+2. Click the "create app" button and fill out the form. IMPORTANT: for running locally, make sure your redirect uri is ```http://localhost:{PORT}/api/auth/callback```, e.g ```http://localhost:3001/api/auth/callback```. The port number should be whichever port you will host the backend server (3001 by default).
 
 ### Installation & Setup
 1. Clone the repository:
@@ -53,7 +53,7 @@ Backend:
     ```
     SPOTIFY_CLIENT_ID=your_spotify_client_id
     SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
-    SPOTIFY_REDIRECT_URI=http://localhost:3001/callback //make sure that this is the same redirect uri as set on your Spotify Developer Dashboard
+    SPOTIFY_REDIRECT_URI=http://localhost:3001/api/auth/callback //make sure that this is the same redirect uri as set on your Spotify Developer Dashboard
     FRONTEND_URL=http://localhost:3000 //The port number can be whatever port the frontend is hosted at (3000 by default)
     //Optional: PORT={choose a port number. Otherwise it will be 3001}
     ```
