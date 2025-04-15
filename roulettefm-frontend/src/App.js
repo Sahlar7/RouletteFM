@@ -82,7 +82,7 @@ function App() {
                 }
                 
                 const response = await fetch(
-                    `${process.env.REACT_APP_SERVER_URL}/refresh_token?refresh_token=${encodeURIComponent(storedRefreshToken)}`,
+                    `${process.env.REACT_APP_SERVER_URL}/api/auth/refresh_token?refresh_token=${encodeURIComponent(storedRefreshToken)}`,
                     { method: 'GET' }
                 );
                 
@@ -271,7 +271,7 @@ function App() {
     const spotifyLogin = () => {
         setIsLoading(true);
         setLoadingAction('connecting');
-        window.open(`${process.env.REACT_APP_SERVER_URL}/login`, '_self');
+        window.open(`${process.env.REACT_APP_SERVER_URL}/api/auth/login`, '_self');
     };
 
     const joinLobby = () => {
