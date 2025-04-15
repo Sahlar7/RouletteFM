@@ -14,7 +14,7 @@ You can play Roulette.FM today at https://roulettefm.vercel.app
 
 ---
 
-## Running Locally
+## Roulette.FM Local Setup
 
 ### Prerequisites
 - Node.js (v14 or higher)
