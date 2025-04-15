@@ -1,5 +1,8 @@
 # Roulette.FM
 
+![alt text](https://github.com/Sahlar7/RouletteFM/blob/main/roulettefm-frontend/src/assets/RouletteFmLogo2.png "RouletteFM Logo")
+
+
 Roulette.FM is a multiplayer music game where players compete by guessing songs from each other's Spotify libraries. The app uses the Spotify API to fetch saved tracks and create a fun, interactive experience. Play with your friends to see how well you know each other's music tastes! 
 
 ## How to Play
