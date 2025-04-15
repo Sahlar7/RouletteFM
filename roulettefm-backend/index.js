@@ -153,9 +153,10 @@ async function selectRandomSong(players, rounds) {
 
         // Step 2: Randomly select a player
         const questions = [];
+        const playerQueue = [...validPlayerTracks];
         
         for(let i = 0; i<rounds; i++){
-            const randomPlayerData = selectRandom(validPlayerTracks);
+            const randomPlayerData = playerQueue.shift();
             const randomPlayerName = randomPlayerData.player.name;
     
             // Step 3: Randomly select a track from that player's saved tracks
@@ -175,9 +176,13 @@ async function selectRandomSong(players, rounds) {
                 i--; // Retry the current round if invalid data
             } else {
                 questions.push({ track: filteredTrack, playerName: randomPlayerName });
+                playerQueue.push(randomPlayerData);
             }
         }
-       
+        for (let i = questions.length-1; i>0; i--){
+            const j = Math.floor(Math.random()*(i+1));
+            [questions[i], questions[j]] = [questions[j], questions[i]]; 
+        }
         return questions;
     } catch (error) {
         console.error('Error selecting random song:', error);
@@ -355,9 +360,9 @@ io.on('connection', (socket) => {
             }
         }
     });
-    socket.on('addGuess', ({guess, timeTaken, lobbyId}) =>{
+    socket.on('addGuess', ({guessAndTime, lobbyId}) =>{
         const player = lobbies[lobbyId].players.find(p=> p.socketId === socket.id);
-        lobbies[lobbyId].guesses.set(player, guess);
+        lobbies[lobbyId].guesses.set(player, guessAndTime);
         connectedPlayers = lobbies[lobbyId].players.filter(p => p.connected === true);
         if (lobbies[lobbyId].guesses.size === connectedPlayers.length) {
             disconnectedPlayers = lobbies[lobbyId].players.filter(p => p.connected === false);
@@ -369,13 +374,13 @@ io.on('connection', (socket) => {
             const duration = lobbies[lobbyId].duration;
             console.log('answer: ', correctPlayer);
             guesses.forEach((playerGuess, playerObj) => {
-                const editedGuess = playerGuess.trim().toLowerCase();
+                const editedGuess = playerGuess.guess.trim().toLowerCase();
                 console.log('Player:', playerObj.name);
                 if(editedGuess === correctPlayer){
-                    lobbies[lobbyId].points[playerObj.name] += Math.round((1-((timeTaken/duration)/2))*1000);
+                    lobbies[lobbyId].points[playerObj.name] += Math.round((1-((playerGuess.timeTaken/duration)/2))*1000);
                 }
                 results[playerObj.name] = {
-                    guess: playerGuess,
+                    guess: playerGuess.guess,
                     correct: editedGuess === correctPlayer,
                     points: lobbies[lobbyId].points[playerObj.name],
                 };

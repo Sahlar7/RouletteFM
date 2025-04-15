@@ -16,10 +16,11 @@ function Game({ players, setPlayers, socket, isLeader, setLeader, lobby, gamePha
     const submitGuess = (guess) => {
         const timeTaken = duration - timer;
         setSelectedGuess(guess);
+        const guessAndTime = { guess: guess, timeTaken: timeTaken };
         setIsLoading(true);
         setLoadingAction('submitting');
         
-        socket.emit('addGuess', { guess, timeTaken, lobbyId: lobby.id });
+        socket.emit('addGuess', { guessAndTime: guessAndTime, lobbyId: lobby.id });
         
         setTimeout(() => {
             setIsLoading(false);
